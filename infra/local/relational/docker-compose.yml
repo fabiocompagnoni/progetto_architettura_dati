@@ -1,0 +1,59 @@
+name: citus-local
+
+x-citus: &citus
+  image: citusdata/citus:14.1.0-alpine
+  environment: &citus-env
+    POSTGRES_USER: postgres
+    POSTGRES_DB: archdata
+    # trust accettabile solo perché i worker restano sulla rete interna;
+    # in prod (infra/prod) si usa scram-sha-256.
+    POSTGRES_HOST_AUTH_METHOD: trust
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U postgres -d archdata"]
+    interval: 5s
+    timeout: 5s
+    retries: 20
+  networks: [citus]
+
+services:
+  coordinator:
+    <<: *citus
+    container_name: citus-coordinator
+    ports:
+      - "5432:5432"
+    volumes:
+      - coordinator-data:/var/lib/postgresql
+
+  worker-1:
+    <<: *citus
+    container_name: citus-worker-1
+    volumes:
+      - worker1-data:/var/lib/postgresql
+
+  worker-2:
+    <<: *citus
+    container_name: citus-worker-2
+    volumes:
+      - worker2-data:/var/lib/postgresql
+
+  register-nodes:
+    image: citusdata/citus:14.1.0-alpine
+    container_name: citus-register-nodes
+    environment: *citus-env
+    entrypoint: ["bash", "/register-nodes.sh"]
+    volumes:
+      - ./init/register-nodes.sh:/register-nodes.sh:ro
+    networks: [citus]
+    restart: "no"
+    depends_on:
+      coordinator: { condition: service_healthy }
+      worker-1: { condition: service_healthy }
+      worker-2: { condition: service_healthy }
+
+networks:
+  citus:
+
+volumes:
+  coordinator-data:
+  worker1-data:
+  worker2-data:
