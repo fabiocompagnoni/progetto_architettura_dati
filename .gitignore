@@ -1,0 +1,29 @@
+# Dati e risultati generati
+benchmark/results/*
+!benchmark/results/.gitkeep
+data/generated/
+
+# Report LaTeX (artefatti di build)
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.bbl
+report/*.blg
+report/*.synctex.gz
+report/*.fls
+report/*.fdb_latexmk
+
+# Segreti / config locale
+*.env
+.env
+!*.env.example
+
+# Note di lavoro, fuori dalla consegna
+docs/superpowers/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
