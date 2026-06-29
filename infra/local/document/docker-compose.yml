@@ -1,0 +1,31 @@
+name: mongo-local
+
+services:
+  mongo:
+    image: mongo:8.3.4
+    container_name: mongo
+    # Replica set anche a nodo singolo: le transazioni multi-documento
+    # non sono disponibili in modalità standalone.
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  init-replica:
+    image: mongo:8.3.4
+    container_name: mongo-init-replica
+    entrypoint: ["bash", "/init-replica.sh"]
+    volumes:
+      - ./init/init-replica.sh:/init-replica.sh:ro
+    restart: "no"
+    depends_on:
+      mongo: { condition: service_healthy }
+
+volumes:
+  mongo-data:
