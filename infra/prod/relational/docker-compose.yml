@@ -1,0 +1,31 @@
+# Nodo Citus (identico per coordinator e worker; il ruolo lo decide la registrazione a runtime).
+name: citus
+services:
+  citus:
+    image: citusdata/citus:14.1.0-alpine
+    container_name: citus
+    network_mode: host                 # ascolta sull'IP privato della VM, niente NAT
+    shm_size: 1gb                       # /dev/shm per le query parallele (il default 64MB e' stretto)
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: archdata
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD non impostata}   # dall'ambiente, non committata
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+    volumes:
+      - citus-data:/var/lib/postgresql
+      - ./config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./init/10-pgpass.sh:/docker-entrypoint-initdb.d/10-pgpass.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d archdata"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+volumes:
+  citus-data:
