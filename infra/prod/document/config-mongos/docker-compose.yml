@@ -1,0 +1,25 @@
+# Config server + mongos (su worker-1, 10.0.1.8). Il config server tiene i metadati del cluster,
+# il mongos e' il router a cui si connette il driver.
+name: mongo-config-mongos
+services:
+  configsvr:
+    image: mongo:8.3.4
+    container_name: mongo-configsvr
+    network_mode: host
+    command: mongod --configsvr --replSet cfgrs --port 27019 --keyFile /etc/mongo/keyfile --bind_ip_all
+    volumes:
+      - config-data:/data/db
+      - ./keyfile:/etc/mongo/keyfile:ro
+    restart: unless-stopped
+  mongos:
+    image: mongo:8.3.4
+    container_name: mongos
+    network_mode: host
+    command: mongos --configdb cfgrs/10.0.1.8:27019 --port 27017 --keyFile /etc/mongo/keyfile --bind_ip_all
+    volumes:
+      - ./keyfile:/etc/mongo/keyfile:ro
+    depends_on:
+      - configsvr
+    restart: unless-stopped
+volumes:
+  config-data:
