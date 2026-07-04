@@ -1,7 +1,7 @@
 # Dati e risultati generati
 benchmark/results/*
 !benchmark/results/.gitkeep
-data/generated/
+data/generato/
 
 # Report LaTeX (artefatti di build)
 report/*.aux
@@ -14,13 +14,30 @@ report/*.synctex.gz
 report/*.fls
 report/*.fdb_latexmk
 
+# Figure LaTeX
+report/figure/*.pdf
+report/figure/*.png
+report/figure/*.aux
+report/figure/*.log
+report/figure/*.synctex.gz
+report/figure/*.fls
+report/figure/*.fdb_latexmk
+
+# Python
+__pycache__/
+*.pyc
+
 # Segreti / config locale
 *.env
 .env
 !*.env.example
 
-# Note di lavoro, fuori dalla consegna
-docs/superpowers/
+# Dati reali (GDPR), mai versionati
+cedolini_veri/
+
+
+docs/
+scelte_progetto.md
 
 # OS / editor
 .DS_Store
