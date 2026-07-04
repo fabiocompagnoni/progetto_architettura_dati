@@ -40,6 +40,28 @@ ATECO = [(r["code"], r["title_it"][:150]) for r in _leggi("ateco-records.json") 
 COMUNI = [(r["cod_fisco"], r["comune"], r["provincia"], r["num_residenti"])
           for r in _leggi("comuni", "italy_cities.json")["Foglio1"]]
 
+# Modello sintetico dei livelli (il CNEL non espone i minimi tabellari): la stessa scala si
+# applica a ogni CCNL, e per ogni indice di livello si ha una qualifica con le sue mansioni.
+# (livello, descrizione, moltiplicatore_paga)
+LADDER = [
+    ("1", "Operaio comune",       1.00),
+    ("2", "Operaio qualificato",  1.12),
+    ("3", "Impiegato",            1.28),
+    ("4", "Impiegato direttivo",  1.50),
+    ("5", "Quadro",               1.85),
+    ("6", "Dirigente",            2.70),
+]
+
+# (qualifica, [mansioni]) per lo stesso indice di livello del ladder
+QUALIFICHE = [
+    ("Operaio",   ["Addetto produzione", "Magazziniere", "Conduttore linea", "Manutentore"]),
+    ("Operaio",   ["Operaio specializzato", "Attrezzista", "Saldatore", "Elettricista"]),
+    ("Impiegato", ["Impiegato amministrativo", "Addetto contabilita", "Addetto paghe", "Addetto acquisti"]),
+    ("Impiegato", ["Responsabile ufficio", "Analista", "Tecnico commerciale", "Programmatore"]),
+    ("Quadro",    ["Responsabile di area", "Project manager", "Capo reparto"]),
+    ("Dirigente", ["Direttore di stabilimento", "Direttore commerciale", "Direttore tecnico"]),
+]
+
 # (codice, descrizione, categoria, segno, imponibile_previdenziale, imponibile_fiscale)
 TIPI_VOCE = [
     ("0201", "Retribuzione ordinaria",       "retribuzione",  "C", True,  True),
