@@ -1,0 +1,14 @@
+# Shard MongoDB (su VM-2/3/4). Ogni shard e' un replica set a 1 membro con nome distinto (MONGO_RS).
+name: mongo-shard
+services:
+  shard:
+    image: mongo:8.3.4
+    container_name: mongo-shard
+    network_mode: host
+    command: mongod --shardsvr --replSet ${MONGO_RS:?MONGO_RS non impostata} --port 27018 --keyFile /etc/mongo/keyfile --bind_ip_all
+    volumes:
+      - shard-data:/data/db
+      - ./keyfile:/etc/mongo/keyfile:ro
+    restart: unless-stopped
+volumes:
+  shard-data:
