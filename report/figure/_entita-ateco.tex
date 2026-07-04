@@ -1,0 +1,20 @@
+\documentclass[border=8pt]{standalone}
+\usepackage[utf8]{inputenc}
+\usepackage{tikz}
+\usetikzlibrary{positioning}
+
+\tikzset{
+  entita/.style = {rectangle, draw, thick, fill=blue!8, minimum width=28mm, minimum height=13mm, font=\small},
+  attr/.style   = {circle, draw, thick, fill=white, minimum size=5pt, inner sep=0},
+  pk/.style     = {circle, draw, thick, fill=black, minimum size=5pt, inner sep=0},
+  link/.style   = {thick},
+  et/.style     = {font=\footnotesize}
+}
+
+\begin{document}
+\begin{tikzpicture}
+  \node[entita] (E) {ATECO};
+  \node[pk]   (c) at (-3.0,0){}; \draw[link] (-1.4,0)--(c); \node[et,left] at (c) {codice};
+  \node[attr] (d) at ( 3.2,0){}; \draw[link] ( 1.4,0)--(d); \node[et,right] at (d) {descrizione};
+\end{tikzpicture}
+\end{document}

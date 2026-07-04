@@ -1,0 +1,21 @@
+\documentclass[border=8pt]{standalone}
+\usepackage[utf8]{inputenc}
+\usepackage{tikz}
+\usetikzlibrary{positioning}
+
+\tikzset{
+  debole/.style = {rectangle, draw, thick, fill=blue!8, double, double distance=1.5pt, minimum width=38mm, minimum height=13mm, font=\small},
+  attr/.style   = {circle, draw, thick, fill=white, minimum size=5pt, inner sep=0},
+  pk/.style     = {circle, draw, thick, fill=black, minimum size=5pt, inner sep=0},
+  link/.style   = {thick},
+  et/.style     = {font=\footnotesize}
+}
+
+\begin{document}
+\begin{tikzpicture}
+  \node[debole] (E) {UNITA\_APPARTENENZA};
+  % codice: identificatore parziale dell'entita debole
+  \node[pk]   (c) at (-4.2,0){}; \draw[link] (-1.9,0)--(c); \node[et,left] at (c) {codice};
+  \node[attr] (d) at ( 4.4,0){}; \draw[link] ( 1.9,0)--(d); \node[et,right] at (d) {descrizione};
+\end{tikzpicture}
+\end{document}

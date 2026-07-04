@@ -1,0 +1,22 @@
+\documentclass[border=8pt]{standalone}
+\usepackage[utf8]{inputenc}
+\usepackage{tikz}
+\usetikzlibrary{positioning}
+
+\tikzset{
+  debole/.style = {rectangle, draw, thick, fill=blue!8, double, double distance=1.5pt, minimum width=28mm, minimum height=16mm, font=\small},
+  attr/.style   = {circle, draw, thick, fill=white, minimum size=5pt, inner sep=0},
+  link/.style   = {thick},
+  et/.style     = {font=\footnotesize}
+}
+
+\begin{document}
+\begin{tikzpicture}
+  % identificazione esterna: cedolino + tipo_contributo (nessun id interno)
+  \node[debole] (E) {CONTRIBUTO};
+  \node[attr] (im) at (-3.6, 0.4){}; \draw[link] (-1.4, 0.4)--(im); \node[et,left] at (im) {imponibile};
+  \node[attr] (al) at (-3.6,-0.4){}; \draw[link] (-1.4,-0.4)--(al); \node[et,left] at (al) {aliquota};
+  \node[attr] (qd) at ( 3.6, 0.4){}; \draw[link] ( 1.4, 0.4)--(qd); \node[et,right] at (qd) {quota\_dipendente};
+  \node[attr] (qz) at ( 3.6,-0.4){}; \draw[link] ( 1.4,-0.4)--(qz); \node[et,right] at (qz) {quota\_ditta};
+\end{tikzpicture}
+\end{document}

@@ -1,0 +1,24 @@
+\documentclass[border=8pt]{standalone}
+\usepackage[utf8]{inputenc}
+\usepackage{tikz}
+\usetikzlibrary{positioning}
+
+\tikzset{
+  entita/.style = {rectangle, draw, thick, fill=blue!8, minimum width=28mm, minimum height=14mm, font=\small},
+  attr/.style   = {circle, draw, thick, fill=white, minimum size=5pt, inner sep=0},
+  pk/.style     = {circle, draw, thick, fill=black, minimum size=5pt, inner sep=0},
+  link/.style   = {thick},
+  et/.style     = {font=\footnotesize}
+}
+
+\begin{document}
+\begin{tikzpicture}
+
+  \node[entita] (E) {COMUNE};
+
+  \node[pk]   (ist) at (-3.4, 0.4){}; \draw[link] (-1.4, 0.4)--(ist); \node[et,left] at (ist) {codice\_istat};
+  \node[attr] (nom) at (-3.4,-0.4){}; \draw[link] (-1.4,-0.4)--(nom); \node[et,left] at (nom) {nome};
+  \node[attr] (pr)  at ( 3.4, 0.0){}; \draw[link] ( 1.4, 0.0)--(pr);  \node[et,right] at (pr)  {provincia};
+
+\end{tikzpicture}
+\end{document}

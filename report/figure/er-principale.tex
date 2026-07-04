@@ -1,0 +1,52 @@
+\documentclass[border=8pt]{standalone}
+\usepackage[utf8]{inputenc}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, positioning}
+
+\tikzset{
+  entita/.style     = {rectangle, draw, thick, fill=blue!8, minimum width=26mm, minimum height=9mm, font=\small},
+  debole/.style     = {entita, double, double distance=1.5pt},
+  relazione/.style  = {diamond, draw, thick, fill=orange!15, aspect=2, inner sep=1pt, font=\footnotesize},
+  card/.style       = {font=\scriptsize, midway, fill=white, inner sep=1.5pt},
+  link/.style       = {thick}
+}
+
+\begin{document}
+\begin{tikzpicture}[node distance=16mm and 22mm]
+
+  \node[entita] (ditta)     {DITTA};
+  \node[relazione, below=of ditta]      (occupa)  {occupa};
+  \node[entita, below=of occupa]        (dip)     {DIPENDENTE};
+  \node[relazione, below=of dip]        (riceve)  {riceve};
+  \node[entita, below=of riceve]        (ced)     {CEDOLINO};
+
+  \node[relazione, left=of dip]         (stipula) {stipula};
+  \node[entita, left=of stipula]        (contr)   {CONTRATTO};
+  \node[relazione, below=of contr]      (inq)     {inquadra};
+  \node[debole, below=of inq]           (liv)     {LIVELLO};
+  \node[relazione, left=of liv]         (compr)   {comprende};
+  \node[entita, left=of compr]          (ccnl)    {CCNL};
+
+  \node[relazione, right=of dip]        (affer)   {afferisce};
+  \node[entita, right=of affer]         (cdc)     {CENTRO\_DI\_COSTO};
+  \node[relazione, above=of cdc]        (ha)      {ha};
+
+  \draw[link] (ditta) -- (occupa) node[card]{(1,N)};
+  \draw[link] (occupa) -- (dip)   node[card]{(1,1)};
+  \draw[link] (dip) -- (riceve)   node[card]{(1,N)};
+  \draw[link] (riceve) -- (ced)   node[card]{(1,1)};
+
+  \draw[link] (dip) -- (stipula)  node[card]{(1,N)};
+  \draw[link] (stipula) -- (contr) node[card]{(1,1)};
+  \draw[link] (contr) -- (inq)    node[card]{(1,1)};
+  \draw[link] (inq) -- (liv)      node[card]{(0,N)};
+  \draw[link] (ccnl) -- (compr)   node[card]{(1,N)};
+  \draw[link] (compr) -- (liv)    node[card]{(1,1)};
+
+  \draw[link] (dip) -- (affer)    node[card]{(0,1)};
+  \draw[link] (affer) -- (cdc)    node[card]{(0,N)};
+  \draw[link] (ditta.east) to[out=0,in=90] node[card]{(1,N)} (ha);
+  \draw[link] (ha) -- (cdc)       node[card]{(1,1)};
+
+\end{tikzpicture}
+\end{document}
