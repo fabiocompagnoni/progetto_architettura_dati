@@ -17,7 +17,8 @@ if [ "$nodeip" = random ]; then
 fi
 qname=$(basename "$qfile" .sql)
 sql=$(grep -vE '^\\' "$qfile")            # toglie i meta psql, lascia la SQL
-log=benchmark/results/guasto_${qname}.csv
+# un file per run (nodo + ora), cosi' i run multipli non si sovrascrivono
+log=benchmark/results/guasto_${qname}_${nodeip//./-}_$(date +%H%M%S).csv
 mkdir -p benchmark/results
 echo "t_s,nodo_giu,esito,righe,ms" > "$log"
 
@@ -35,10 +36,11 @@ while :; do
   # nodo segnato "giu" tra spegnimento e riaccensione (il recupero effettivo si legge dagli esiti err successivi)
   down="-"; [ "$killed" = 1 ] && [ "$restarted" = 0 ] && down="$nodeip"
   q0=$(date +%s%3N)
-  out=$(timeout 3 docker exec -i citus psql -U postgres -d archdata -qtAc "$sql" 2>/dev/null); rc=$?
+  out=$(timeout 3 docker exec citus psql -U postgres -d archdata -qtAc "$sql" 2>/dev/null); rc=$?
   q1=$(date +%s%3N)
   if [ "$rc" -eq 0 ]; then esito=ok; righe=$(printf '%s' "$out" | grep -c .); else esito=err; righe=0; fi
   echo "$els,$down,$esito,$righe,$(( q1 - q0 ))" >> "$log"
+  hb=$(( el / 2000 )); if [ "$hb" != "${lasthb:-x}" ]; then lasthb=$hb; echo "  t=${els}s  esito=$esito  righe=$righe  nodo_giu=$down"; fi
 done
 
 awk -F, 'NR>1{n++; if($3=="err"){e++; if(!f)f=$1; l=$1}}
