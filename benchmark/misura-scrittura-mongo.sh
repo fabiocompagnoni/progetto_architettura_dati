@@ -12,7 +12,8 @@ nssh() { ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes "$user@$1" "$2
 snap_disk() { nssh "$1" "awk '\$3~/^(sd[a-z]+|nvme[0-9]+n[0-9]+|vd[a-z]+|xvd[a-z]+)\$/{r+=\$6;w+=\$10} END{print r+0, w+0}' /proc/diskstats"; }
 mapfile -t SHARD < <(mongos --eval "db.getSiblingDB('config').shards.find().toArray().forEach(s=>print(s.host.replace(/^.*\//,'').replace(/:.*/,'')))")
 
-# script = query in una funzione, ripetuta N volte in una sola sessione
+# script = query in una funzione, ripetuta N volte a tenant FISSO (parallelo a Citus): la scrittura di un
+# tenant colpisce un solo shard -> mostra la co-locazione, coerente col finding sulle scritture di Citus.
 tmp=$(mktemp)
 { echo "function _run(){"; cat "$qfile"; echo "}"; echo "for(let i=0;i<$N;i++){_run();} print('DONE');"; } > "$tmp"
 opc0=$(mongos "$db" --eval "const o=db.serverStatus().opcounters; print(o.insert+o.update+o.delete)")

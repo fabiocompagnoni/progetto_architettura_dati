@@ -21,7 +21,13 @@ chunk=$(mongos --eval "print((db.getSiblingDB('config').settings.findOne({_id:'c
 
 # wrapper: la query in una funzione (const locali ad ogni chiamata) ripetuta per dur secondi
 tmp=$(mktemp)
-{ echo "function _run(){"; cat "$qfile"; echo "}"; echo "const _e=Date.now()+$dur*1000; let _n=0; while(Date.now()<_e){_run(); _n++;} print('ITER='+_n);"; } > "$tmp"
+# numero di tenant, per randomizzare i parametri e spargere il carico su tutti gli shard
+# (altrimenti si leggerebbe sempre lo stesso documento -> sempre lo stesso shard)
+nt=$(mongos --eval "print(db.getSiblingDB('archdata').ditte.countDocuments({}))" 2>/dev/null | tail -1)
+{ echo "function _run(){"; cat "$qfile"; echo "}"
+  echo "const _NT=${nt:-30}; const _e=Date.now()+$dur*1000; let _n=0;"
+  echo "while(Date.now()<_e){ globalThis.TENANT=1+Math.floor(Math.random()*_NT); globalThis.DIP=1+Math.floor(Math.random()*10); globalThis.MESE=1+Math.floor(Math.random()*12); _run(); _n++; } print('ITER='+_n);"
+} > "$tmp"
 
 opc_before=$(mongos "$db" --eval "const o=db.serverStatus().opcounters; print(o.query+o.insert+o.update+o.delete+o.command)")
 declare -A DR0 DW0
