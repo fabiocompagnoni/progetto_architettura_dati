@@ -1,0 +1,138 @@
+\chapter{Dominio, fondamenti e scelte progettuali}
+\label{ch:dominio}
+
+Prima di progettare le basi di dati e la campagna sperimentale sono state prese alcune decisioni di fondo: su
+quale dominio applicativo lavorare, con quali dati, quali due sistemi confrontare e sulla base di quali
+concetti teorici. Questo capitolo le motiva e richiama i fondamenti necessari a interpretare i risultati.
+
+\section{Il dominio HR}
+\label{sec:dominio}
+
+Il dominio è quello della gestione del personale e delle retribuzioni (\emph{payroll}): ditte, dipendenti,
+contratti, presenze e \textbf{cedolini paga}, in regime \textbf{multitenant}. Oltre all'origine reale già
+descritta (\Cref{sec:usecase}), è particolarmente adatto a mettere a confronto i due modelli di dati per
+alcune sue proprietà strutturali:
+
+\begin{itemize}
+  \item \textbf{Multitenancy}: l'attributo \texttt{tenant\_id} (la ditta) è la chiave di partizionamento
+        naturale su entrambi i sistemi, pattern canonico dei sistemi distribuiti multitenant;
+  \item \textbf{Contrasto tra i modelli}: il cedolino si presta a essere rappresentato come un unico documento
+        (intestazione, voci, ratei, contributi, addizionali), ma sotto ha una struttura relazionale fatta di
+        anagrafiche e cataloghi condivisi; permette quindi di osservare in quali casi conviene l'uno o l'altro
+        modello;
+  \item \textbf{Evoluzione di schema con una storia reale}: obblighi come la trasparenza retributiva sono un
+        cambiamento concreto su un sistema già popolato (vedi \Cref{sec:evoluzione}).
+\end{itemize}
+
+\section{I dati: fonti autoritative e generazione sintetica}
+\label{sec:dati}
+
+Il dataset combina \textbf{cataloghi autoritativi} e \textbf{dati sintetici} chiaramente dichiarati come tali:
+
+\begin{itemize}
+  \item \emph{Autoritativi} (fonti ufficiali): comuni italiani con codice catastale e provincia; codici e
+        settori CCNL dall'export CNEL; codici ATECO dalla classificazione ufficiale;
+  \item \emph{Calibrati sui cedolini reali} (codifica propria): tipi voce, tipi contributo, causali di assenza;
+  \item \emph{Sintetici} (dichiarati): livelli e minimi tabellari, maggiorazioni; e l'intero insieme di
+        ditte, dipendenti e cedolini, generato per rispettare il GDPR.
+\end{itemize}
+
+La generazione è affidata a uno script Python (con \texttt{Faker} e un pool di anagrafiche riusate per
+velocità) parametrico e \textbf{riproducibile grazie a un seed fisso}: lo stesso comando produce sempre lo
+stesso dataset e lo esporta in due formati, uno per il caricamento relazionale (\texttt{COPY}) e uno per
+quello documentale (\texttt{mongoimport}), così i due sistemi ricevono \emph{gli stessi dati}. La scala è
+vincolata dal disco delle macchine (\Cref{ch:metodologia}); i volumi effettivi sono in \Cref{tab:volumi}.
+L'esperimento a dati crescenti su MongoDB ha spinto il volume più in alto, fino a 2630 ditte
+(\Cref{ch:risultati}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Volumi del dataset: composizione del dataset base (30 ditte) e intervallo dei punti di scala usati
+    nell'esperimento a dati crescenti (\Cref{ch:risultati}).}
+  \label{tab:volumi}
+  \begin{tabular}{lrrr}
+    \toprule
+    \textbf{Scala} & \textbf{Ditte} & \textbf{Dipendenti} & \textbf{Cedolini} \\
+    \midrule
+    Base                       & 30      & 554                       & 6\,648 \\
+    Dati crescenti (Citus)     & 60--480 & ${\approx}$1\,100--8\,800 & ${\approx}$13\,000--106\,000 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Fondamenti teorici}
+\label{sec:fondamenti}
+
+\subsection{Modello dei dati: relazionale vs documentale}
+Nel modello \textbf{relazionale} i dati sono organizzati in relazioni (tabelle) di tuple con schema rigido e
+tipato; le relazioni tra entità si esprimono con chiavi esterne e si ricompongono a interrogazione con i
+\emph{join}, e il DBMS garantisce l'integrità (chiavi, vincoli). Il pregio è l'assenza di ridondanza (ogni
+fatto in un solo posto) e la flessibilità delle interrogazioni ad-hoc; il costo è che un'entità ``logica''
+come il cedolino completo è spezzata su più tabelle e va ricomposta con join~\cite{atzeni2018basidati}.
+
+Nel modello \textbf{documentale} i dati sono documenti annidati (BSON/JSON) raccolti in collezioni, con
+schema flessibile; le relazioni si modellano soprattutto con l'\textbf{embedding} (annidare i dati correlati
+nello stesso documento, ottenendo l'aggregato). Il pregio è che l'aggregato che si legge e si scrive insieme
+sta in un solo documento (nessun join, una sola operazione di I/O) e che lo schema evolve senza migrazioni;
+il costo è la \textbf{denormalizzazione} (lo stesso dato può essere duplicato in molti documenti, e
+aggiornarlo diventa un \emph{mass-update}) e l'assenza di integrità referenziale a carico del DBMS. Nessun
+modello è universalmente migliore: la scelta dipende dalle operazioni prevalenti~\cite{stonebraker2005onesize}.
+
+\subsection{Linguaggi di interrogazione}
+Il relazionale usa \textbf{SQL}, dichiarativo e potente per l'analitica ad-hoc (join, \texttt{GROUP BY},
+funzioni finestra, percentili). MongoDB usa query semplici (\texttt{find}) e una \textbf{aggregation
+pipeline} a stadi (\texttt{\$match}, \texttt{\$group}, \texttt{\$unwind}, \texttt{\$lookup}); le join
+(\texttt{\$lookup}) esistono ma sono meno naturali, e il modello spinge a \emph{embeddare} ciò che serve
+insieme. I due linguaggi caratterizzano sistemi diversi: i loro throughput non sono direttamente
+confrontabili, per cui il confronto equo avviene sulle \emph{stesse operazioni} del dominio e a livello di
+modello.
+
+\subsection{Scalabilità e sharding}
+Oltre una certa scala la crescita verticale (macchina più grande) non basta e serve la crescita orizzontale
+(\emph{scale-out}), che richiede di \textbf{partizionare} i dati tra più nodi tramite una chiave di
+distribuzione. \textbf{Citus} partiziona le tabelle per hash di \texttt{tenant\_id} in un numero fisso di
+shard sui worker, replica i cataloghi come \emph{reference table} e co-loca tutte le tabelle di un tenant
+sullo stesso shard; il \emph{coordinator} instrada le query (a un solo shard o a tutti, con \emph{merge});
+l'aggiunta di un nodo richiede un \textbf{rebalance esplicito}~\cite{citusdocs}.
+\textbf{MongoDB} partiziona per \emph{shard key} in \emph{chunk} (intervalli di chiave), instradati dal
+\emph{mongos}; un processo di \textbf{balancer}, attivo di default sul config server, redistribuisce
+automaticamente i chunk, ma solo quando lo sbilanciamento tra shard supera \textbf{3 volte la dimensione del
+range} (default 128\,MB $\Rightarrow$ 384\,MB)~\cite{mongodbmanual}. Questa soglia si rivelerà decisiva nei
+risultati (\Cref{ch:risultati}).
+
+\subsection{Transazioni, concorrenza e consistenza}
+Entrambi i sistemi offrono transazioni \textbf{ACID}. In Citus una transazione intra-tenant è su un solo nodo
+(economica), mentre una transazione cross-shard usa il \emph{two-phase commit}; entrambi usano il controllo
+di concorrenza multiversione (MVCC). MongoDB offre transazioni multi-documento ACID (con snapshot isolation),
+ma il modello a documenti spesso le \emph{evita}: l'inserimento di un aggregato in un unico documento è già
+atomico di per sé.
+
+\subsection{Teorema CAP e PACELC}
+Il teorema \textbf{CAP} afferma che, di fronte a un partizionamento di rete (P), un sistema distribuito non
+può garantire insieme consistenza (C) e disponibilità (A)~\cite{gilbert2002cap}. Poiché le partizioni
+accadono, la scelta è tra \textbf{CP} (resta consistente, sacrifica la disponibilità della parte
+irraggiungibile) e AP. \textbf{Entrambi i sistemi qui studiati sono CP}: in un guasto privilegiano la
+consistenza. L'estensione \textbf{PACELC} aggiunge che, anche in assenza di partizioni (Else), si sceglie tra
+latenza (L) e consistenza (C): i due sistemi sono PC/EC, coerentemente con un dominio retributivo in cui non
+si tollerano cedolini inconsistenti~\cite{abadi2012pacelc}.
+
+\section{Scelta dei due sistemi}
+\label{sec:scelta-sistemi}
+
+\paragraph{PostgreSQL + Citus.} Serviva un relazionale \emph{realmente distribuito}: PostgreSQL ``liscio''
+non lo è, mentre i sistemi NewSQL sono database a sé. Citus è invece un'\textbf{estensione} di PostgreSQL con
+primitive di distribuzione \emph{esplicite} (tabelle distribuite, reference table, co-locazione) che si
+mappano in modo diretto sul discorso di modellazione ed è quindi didattico; offre SQL completo, transazioni
+distribuite e consistenza forte (CP).
+
+\paragraph{MongoDB.} Come controparte NoSQL è stato scelto MongoDB (documentale) invece di Cassandra
+(colonnare, AP). Cassandra darebbe un contrasto CAP più estremo, ma il progetto richiede esplicitamente le
+\emph{transazioni}: le transazioni ACID general-purpose di Cassandra non sono ancora nelle versioni stabili,
+mentre MongoDB le ha stabili da anni. Inoltre il modello a documenti si adatta bene all'aggregato ``cedolino'' e rende
+quasi gratuita l'evoluzione di schema. Si ottiene così un confronto CP$\leftrightarrow$CP equilibrato ma tra
+\emph{modelli di dati opposti}.
+
+\paragraph{Tipo di sharding: row-based.} Citus offre due modalità di distribuzione (per riga su una colonna,
+o per schema). Si è scelto il \textbf{row-based} (partizionamento per \texttt{tenant\_id}) perché è l'unico
+simmetrico a MongoDB, che distribuisce per shard key su una collezione: solo così il confronto è
+bilanciato, e l'analitica cross-tenant parallelizza nativamente sugli shard.

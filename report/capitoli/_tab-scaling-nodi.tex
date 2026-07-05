@@ -1,0 +1,74 @@
+\begingroup
+\footnotesize
+\begin{longtable}{@{}llrrrr@{}}
+\caption{Scalabilità per numero di nodi (Citus): tutte le metriche raccolte, per le 13 query, a 1--4 nodi. Le metriche per-worker sono la media sui worker attivi.}\label{tab:scaling-nodi-full}\\
+\toprule \textbf{Query} & \textbf{Parametro} & \textbf{1 nodo} & \textbf{2 nodi} & \textbf{3 nodi} & \textbf{4 nodi} \\ \midrule \endfirsthead
+\toprule \textbf{Query} & \textbf{Parametro} & \textbf{1 nodo} & \textbf{2 nodi} & \textbf{3 nodi} & \textbf{4 nodi} \\ \midrule \endhead
+\multirow{5}{*}{L01 cedolino singolo} & latenza (ms)     & 1.5 & 1.5 & 1.5 & 1.5 \\
+ & throughput (op/s) & 680 & 666 & 669 & 688 \\
+ & CPU worker (\%)   & 11 & 6 & 4 & 3 \\
+ & exec worker (ms)  & 138 & 63 & 47 & 34 \\
+ & righe/worker      & 6797 & 3331 & 2230 & 1718 \\ \midrule
+\multirow{5}{*}{L02 cedolini ditta/periodo} & latenza (ms)     & 1.5 & 1.6 & 1.6 & 1.5 \\
+ & throughput (op/s) & 669 & 636 & 638 & 654 \\
+ & CPU worker (\%)   & 15 & 7 & 5 & 4 \\
+ & exec worker (ms)  & 171 & 82 & 56 & 43 \\
+ & righe/worker      & 6699 & 3182 & 2127 & 1636 \\ \midrule
+\multirow{5}{*}{L03 costo per centro} & latenza (ms)     & 2.3 & 2.3 & 2.3 & 2.3 \\
+ & throughput (op/s) & 438 & 431 & 437 & 433 \\
+ & CPU worker (\%)   & 27 & 14 & 9 & 7 \\
+ & exec worker (ms)  & 646 & 315 & 213 & 161 \\
+ & righe/worker      & 210192 & 103456 & 69909 & 51988 \\ \midrule
+\multirow{5}{*}{L04 gender gap mediano} & latenza (ms)     & 71.9 & 45.0 & 23.2 & 18.3 \\
+ & throughput (op/s) & 14 & 23 & 43 & 55 \\
+ & CPU worker (\%)   & 142 & 57 & 26 & 24 \\
+ & exec worker (ms)  & 531 & 335 & 367 & 347 \\
+ & righe/worker      & 77375 & 63064 & 79899 & 75667 \\ \midrule
+\multirow{5}{*}{L05 top-N retribuzioni} & latenza (ms)     & 65.8 & 33.7 & 19.4 & 14.9 \\
+ & throughput (op/s) & 15 & 31 & 52 & 67 \\
+ & CPU worker (\%)   & 129 & 33 & 20 & 20 \\
+ & exec worker (ms)  & 327 & 237 & 244 & 266 \\
+ & righe/worker      & 54840 & 55080 & 61960 & 60240 \\ \midrule
+\multirow{5}{*}{L06 assenteismo per mese} & latenza (ms)     & 61.4 & 31.2 & 19.9 & 15.4 \\
+ & throughput (op/s) & 16 & 32 & 50 & 65 \\
+ & CPU worker (\%)   & 122 & 30 & 21 & 17 \\
+ & exec worker (ms)  & 1700 & 1225 & 1224 & 923 \\
+ & righe/worker      & 245000 & 242750 & 251667 & 187125 \\ \midrule
+\multirow{5}{*}{L07 straordinari per centro} & latenza (ms)     & 3.1 & 3.1 & 3.1 & 3.2 \\
+ & throughput (op/s) & 321 & 322 & 326 & 317 \\
+ & CPU worker (\%)   & 41 & 21 & 14 & 11 \\
+ & exec worker (ms)  & 1631 & 889 & 603 & 441 \\
+ & righe/worker      & 12843 & 6435 & 4343 & 3165 \\ \midrule
+\multirow{5}{*}{L08 trend costo lavoro} & latenza (ms)     & 56.1 & 24.0 & 15.9 & 12.1 \\
+ & throughput (op/s) & 18 & 42 & 63 & 82 \\
+ & CPU worker (\%)   & 106 & 14 & 12 & 12 \\
+ & exec worker (ms)  & 466 & 368 & 360 & 351 \\
+ & righe/worker      & 42880 & 50080 & 50267 & 49500 \\ \midrule
+\multirow{5}{*}{L09 organico per livello} & latenza (ms)     & 57.7 & 24.5 & 17.0 & 12.8 \\
+ & throughput (op/s) & 17 & 41 & 59 & 78 \\
+ & CPU worker (\%)   & 106 & 15 & 14 & 13 \\
+ & exec worker (ms)  & 186 & 134 & 127 & 125 \\
+ & righe/worker      & 51852 & 60991 & 58640 & 58234 \\ \midrule
+\multirow{5}{*}{L10 cedolino completo} & latenza (ms)     & 82.7 & 63.3 & 27.9 & 21.7 \\
+ & throughput (op/s) & 12 & 16 & 36 & 46 \\
+ & CPU worker (\%)   & 189 & 91 & 33 & 31 \\
+ & exec worker (ms)  & 169 & 97 & 116 & 112 \\
+ & righe/worker      & 121 & 79 & 120 & 115 \\ \midrule
+\multirow{5}{*}{L11 spesa per categoria} & latenza (ms)     & 75.6 & 52.7 & 25.3 & 20.1 \\
+ & throughput (op/s) & 13 & 19 & 40 & 50 \\
+ & CPU worker (\%)   & 154 & 68 & 27 & 25 \\
+ & exec worker (ms)  & 1464 & 535 & 524 & 543 \\
+ & righe/worker      & 73497 & 52907 & 73066 & 69158 \\ \midrule
+\multirow{5}{*}{L12 ferie residue} & latenza (ms)     & 75.4 & 59.7 & 25.2 & 19.5 \\
+ & throughput (op/s) & 13 & 17 & 40 & 51 \\
+ & CPU worker (\%)   & 165 & 82 & 32 & 30 \\
+ & exec worker (ms)  & 909 & 439 & 545 & 528 \\
+ & righe/worker      & 3990 & 2520 & 3963 & 3842 \\ \midrule
+\multirow{5}{*}{L13 riepilogo assenze} & latenza (ms)     & 3.4 & 3.5 & 3.5 & 3.4 \\
+ & throughput (op/s) & 291 & 290 & 289 & 291 \\
+ & CPU worker (\%)   & 38 & 19 & 12 & 10 \\
+ & exec worker (ms)  & 923 & 453 & 305 & 230 \\
+ & righe/worker      & 29320 & 14487 & 9628 & 7281 \\ \midrule
+\bottomrule
+\end{longtable}
+\endgroup

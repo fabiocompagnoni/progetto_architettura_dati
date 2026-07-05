@@ -1,0 +1,64 @@
+\chapter{Conclusioni}
+\label{ch:conclusioni}
+
+Il lavoro ha confrontato, sullo stesso dominio HR/retributivo e sulla stessa infrastruttura, un relazionale
+distribuito (PostgreSQL+Citus) e un documentale (MongoDB), entrambi CP ma con modelli di dati opposti. Ne
+emerge che la domanda ``quale sistema è migliore'' non ha risposta assoluta: dipende dall'operazione e dalla
+scala, coerentemente con l'idea che non esista una taglia unica~\cite{stonebraker2005onesize}.
+
+\section{Sintesi dei risultati}
+\label{sec:sintesi}
+
+\begin{itemize}
+  \item \textbf{Scalabilità per nodi (Citus)}: le analitiche cross-shard scalano quasi linearmente
+        (${\sim}3.8\text{--}4.6\times$ con 4 nodi); le query mirate a un tenant restano piatte perché
+        colpiscono un solo shard, ma sono già nell'ordine del millisecondo. Il miglioramento è più marcato
+        proprio per le query che aggregano e uniscono (join) dati di più tenant, come mostrano
+        \Cref{tab:scaling-nodi,tab:scaling-nodi-full}: la L05, ad esempio, arriva a $4.4\times$ passando da 1
+        a 4 nodi.
+  \item \textbf{Scalabilità per dati (Citus)}: a nodi fissi le cross-shard degradano super-linearmente col
+        volume, mentre le single-shard restano insensibili grazie all'indicizzazione e alla co-locazione per
+        tenant.
+  \item \textbf{Scritture (Citus)}: la co-locazione fa sì che la scrittura di un tenant colpisca un solo nodo;
+        solo la modifica di un dato di riferimento tocca tutti i nodi. La transazione multi-tabella è
+        l'operazione più costosa.
+  \item \textbf{Guasti}: comportamento \textbf{CP} confermato; con un nodo giù la query cross-shard
+        fallisce per l'intera finestra (nessun risultato parziale), con recupero automatico e rapido al
+        rientro. La consistenza è scelta al posto della disponibilità.
+  \item \textbf{MongoDB}: più veloce sulle analitiche che l'embedding serve direttamente (percentili, spesa
+        per categoria), ma \textbf{nettamente più lento} sulle query che attraversano più entità (assenteismo,
+        ferie residue, che toccano assenze e ratei): lì Citus, con i join indicizzati, è risultato più rapido
+        di 6--17 volte a pari scala. Inoltre il balancer, volutamente conservativo, \textbf{non distribuisce a
+        scala piccola}, quindi a quella scala aggiungere shard non porta beneficio; la distribuzione riparte
+        solo a volume grande, in contrasto con il rebalance esplicito e deterministico di Citus.
+  \item \textbf{Modellazione}: il cedolino completo premia il documentale (un documento vs sette tabelle),
+        mentre il dato di riferimento e le aggregazioni multi-entità premiano il relazionale (una riga vs
+        aggiornamento di massa; join indicizzati vs scan di array annidati).
+\end{itemize}
+
+\section{Quando conviene ciascun sistema}
+\label{sec:quando}
+
+Sulla base delle misure: \textbf{Citus} è preferibile quando servono analitiche cross-tenant che devono
+\emph{scalare} orizzontalmente in modo prevedibile e, soprattutto, per le \textbf{query complesse che
+attraversano più entità} (aggregazioni e join profondi su assenze, ratei, contratti): proprio lì, dove
+MongoDB deve scorrere gli array annidati sull'intera collezione, Citus è risultato molte volte più veloce a
+pari scala. Si aggiungono l'integrità referenziale forte, le transazioni distribuite e il controllo esplicito
+della distribuzione tipico di un DBA. \textbf{MongoDB} è preferibile quando il
+carico è dominato da operazioni sull'\emph{aggregato} (lettura/scrittura del documento completo), quando conta
+la bassa latenza sulle singole richieste e la flessibilità di schema, accettando in cambio un controllo meno
+fine sulla distribuzione e la denormalizzazione dei dati condivisi.
+
+\section{Limiti e sviluppi futuri}
+\label{sec:limiti}
+
+I risultati vanno letti alla luce di alcuni limiti dichiarati. La scala è dell'ordine dei GB (vincolo del
+disco delle VM), non delle centinaia di GB. Il working set è sempre rimasto in RAM (cache di Postgres e di
+WiredTiger): le letture da disco sono state nulle, quindi il regime I/O-bound non è stato raggiunto. Gli
+esperimenti si sono fermati quando la tendenza era già chiara e i dati risultavano distribuiti su tutti i
+nodi, senza spingersi fino a saturare il disco. Entrambi i sistemi sono inoltre a copia singola (nessuna
+replica), scelta voluta per un test di guasto CP corretto ma che esclude l'alta disponibilità.
+
+Come sviluppi: spingere i volumi fino alla saturazione effettiva del disco per osservare il regime I/O-bound;
+introdurre la replica per confrontare disponibilità e comportamento in failover; e misurare esplicitamente
+uno scenario di evoluzione di schema (turni/ferie) su entrambi i sistemi, oggi trattato solo a livello teorico.

@@ -1,0 +1,153 @@
+\chapter{Progettazione delle basi di dati}
+\label{ch:progettazione}
+
+Lo stesso dominio è stato modellato nei due paradigmi: uno schema concettuale unico (entità--relazione) è
+stato tradotto in uno schema logico \emph{relazionale distribuito} per Citus e in uno schema \emph{documentale}
+per MongoDB. Il confronto tra le due traduzioni è già di per sé un risultato.
+
+\section{Schema concettuale (ER)}
+\label{sec:er}
+
+Il modello concettuale adotta la notazione entità--relazione di Atzeni~\cite{atzeni2018basidati}. Il dominio
+completo conta circa venticinque entità; per leggibilità se ne dà una vista \emph{semplificata} con le entità
+principali (\Cref{fig:er-principale}) e la vista \emph{completa} (\Cref{fig:er-completo}). Le scelte di
+traduzione notevoli: la generalizzazione \textsc{ditta} (persona giuridica/fisica) è ristrutturata in
+relazioni 1:1 con discriminante; le associazioni N:N (ditta--ATECO, ditta--CCNL) diventano tabelle ponte; le
+entità deboli (voci, ratei, timbrature) ereditano la chiave del padre.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.72\textwidth]{er-principale}
+  \caption{Schema ER semplificato: le entità principali del dominio HR/retributivo.}
+  \label{fig:er-principale}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{er-completo}
+  \caption{Schema ER completo (${\approx}$25 entità).}
+  \label{fig:er-completo}
+\end{figure}
+
+\section{Schema logico relazionale (Citus)}
+\label{sec:logico-citus}
+
+La traduzione al relazionale distribuito distingue due categorie di tabelle (\Cref{tab:citus-tabelle}):
+\textbf{reference table}, cioè i cataloghi condivisi e quasi statici, replicati su ogni nodo per consentire
+join locali; e \textbf{tabelle distribuite}, cioè tutto ciò che appartiene al tenant, partizionato per hash
+di \texttt{tenant\_id}. Le tabelle distribuite stanno in un \emph{unico gruppo di co-locazione}: un intero
+tenant vive su un solo shard, quindi join e transazioni intra-tenant sono \emph{single-node} (nessun 2PC né
+traffico di rete). La distribuzione si dichiara con poche primitive:
+
+\begin{lstlisting}[style=sobrio, language=SQL, caption={Dichiarazione della distribuzione in Citus.}, label={lst:ddl-citus}]
+-- Cataloghi condivisi: reference table (replicate su ogni nodo)
+SELECT create_reference_table('tipo_voce');
+-- Tabelle del tenant: distribuite per hash di tenant_id, co-locate tra loro
+SELECT create_distributed_table('dipendente', 'tenant_id');
+SELECT create_distributed_table('cedolino',   'tenant_id', colocate_with => 'dipendente');
+SELECT create_distributed_table('voce_cedolino','tenant_id', colocate_with => 'dipendente');
+\end{lstlisting}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Ripartizione delle tabelle in Citus tra reference (replicate) e distribuite (per \texttt{tenant\_id}).}
+  \label{tab:citus-tabelle}
+  \begin{tabularx}{\textwidth}{@{}lX@{}}
+    \toprule
+    \textbf{Tipo} & \textbf{Tabelle} \\
+    \midrule
+    Reference (replicate su ogni nodo) & comune, ateco, settore\_ccnl, ccnl, suddivisione, livello,
+      tipo\_voce, tipo\_contributo, causale\_assenza \\
+    Distribuite (hash di \texttt{tenant\_id}, co-locate) & ditta, persona\_giuridica, persona\_fisica,
+      indirizzo, centro\_costo, dipendente, contratto, cedolino, voce\_cedolino, rateo, contributo,
+      addizionale, timbratura, giorno, assenza, \dots \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+Un vincolo di Citus è che ogni chiave primaria o \texttt{UNIQUE} di una tabella distribuita deve includere la
+colonna di distribuzione: la matricola è quindi unica \emph{dentro il tenant}, e il codice fiscale non è
+globalmente unico (la stessa persona può lavorare per più ditte). La co-locazione è illustrata in
+\Cref{fig:colocazione}.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[font=\footnotesize, node distance=6mm]
+    \node[draw, rounded corners, fill=blue!8, minimum width=30mm] (coord) {coordinator (merge/routing)};
+    \foreach \i/\x in {1/-4.5, 2/-1.5, 3/1.5, 4/4.5} {
+      \node[draw, fill=gray!8, minimum width=20mm, minimum height=13mm, below=12mm of coord, xshift=\x cm] (w\i) {};
+      \node[anchor=north] at (w\i.north) {worker \i};
+      \node[font=\tiny, align=center] at ([yshift=-2mm]w\i.center) {shard:\\tenant co-locati};
+      \draw[-{Latex}] (coord) -- (w\i.north);
+    }
+  \end{tikzpicture}
+  \caption{Co-locazione in Citus: ogni tenant (con tutte le sue tabelle) risiede su un solo shard/worker; il
+    coordinator instrada le query single-shard a un worker e fa il merge di quelle cross-shard.}
+  \label{fig:colocazione}
+\end{figure}
+
+\section{Schema documentale (MongoDB)}
+\label{sec:logico-mongo}
+
+Nel modello documentale il cedolino diventa \textbf{un unico documento} che \emph{embedda} tutti i suoi
+annidati (\Cref{lst:doc-cedolino}); le collezioni principali sono tre, tutte shardate per \texttt{tenant\_id}
+(hashed), mentre i cataloghi restano collezioni non shardate (\Cref{tab:mongo-collezioni}).
+
+\begin{lstlisting}[style=sobrio, language=Java, caption={Documento ``cedolino'': l'aggregato completo in un solo documento (embedding).}, label={lst:doc-cedolino}]
+db.cedolini.insertOne({
+  tenant_id: 1, cedolino_id: 42, dipendente_id: 7, anno: 2026, mese: 6,
+  dipendente:   { sesso: "M", livello: "3", ccnl: "A014", cdc: 1 },
+  totali:       { competenze: 2500, trattenute: 700, netto: 1800, costo_azienda: 3300 },
+  voci:         [ { riga: 1, tipo: "0201", importo: 2000 }, { riga: 2, tipo: "0301", importo: 500 } ],
+  ratei:        [ { tipo: "FERIE", residuo: 2.16 } ],
+  contributi:   [ { tipo: "INPS_FPLD", quota_dipendente: 229.75, quota_ditta: 595.25 } ],
+  addizionali:  [ { tipo: "REGIONALE", importo: 39.27 } ]
+});
+\end{lstlisting}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Collezioni MongoDB e chiave di sharding.}
+  \label{tab:mongo-collezioni}
+  \begin{tabularx}{\textwidth}{@{}lXl@{}}
+    \toprule
+    \textbf{Collezione} & \textbf{Contenuto} & \textbf{Shard key} \\
+    \midrule
+    \texttt{ditte}       & anagrafica della ditta (persona giur./fisica, indirizzi, centri di costo embedded) & \texttt{tenant\_id} (hashed) \\
+    \texttt{dipendenti}  & dipendente con i \emph{contratti} embedded & \texttt{tenant\_id} (hashed) \\
+    \texttt{cedolini}    & cedolino completo (voci, ratei, contributi, addizionali embedded) & \texttt{tenant\_id} (hashed) \\
+    cataloghi            & comuni, ateco, tipi voce/contributo, causali & non shardate \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+La differenza cruciale è nell'\textbf{intestazione del cedolino}: nel relazionale l'anagrafica non si duplica
+nel cedolino (si naviga via relazioni), mentre il documentale ne embedda uno \emph{snapshot}. È esattamente
+il punto in cui i due modelli divergono e che verrà misurato.
+
+\section{Quando il modello modella bene}
+\label{sec:contrasto-modelli}
+
+La suite di test include coppie di operazioni deliberatamente scelte per esporre i punti di forza e di
+debolezza dei due modelli:
+\begin{itemize}
+  \item \textbf{Pro-documentale}: leggere e scrivere il cedolino \emph{completo}. In Mongo è un
+        \texttt{findOne}/\texttt{insertOne} su un documento; in Citus è un assemblaggio (o una transazione)
+        su sette tabelle co-locate.
+  \item \textbf{Pro-relazionale}: modificare un \emph{dato di riferimento} (la categoria di un tipo voce). In
+        Citus è \textbf{una riga} su una reference table; in Mongo, con il dato denormalizzato nei cedolini, è
+        un \texttt{updateMany} di centinaia di documenti.
+\end{itemize}
+I risultati di queste coppie sono in \Cref{ch:risultati}.
+
+\section{Evoluzione dello schema}
+\label{sec:evoluzione}
+
+Il requisito di gestire l'evoluzione dello schema in corso d'opera (es.\ l'aggiunta di turni e ferie a un
+sistema già popolato) evidenzia un'altra divergenza, qui trattata a livello di principio. In
+\textbf{Citus/PostgreSQL} un cambiamento strutturale richiede un \texttt{ALTER TABLE} (o nuove tabelle
+distribuite) e un \emph{backfill} dei dati: transazionale e verificato dai vincoli, ma con possibili lock e da
+propagare a tutti gli shard. In \textbf{MongoDB}, grazie allo schema flessibile, l'aggiunta di campi o array
+è quasi gratuita: documenti vecchi e nuovi coesistono e l'assenza dei nuovi campi è gestita dall'applicazione
+(schema-on-read). Il documentale è più agile sulle estensioni, il relazionale offre in cambio garanzie di
+integrità durante la migrazione.

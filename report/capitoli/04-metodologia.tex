@@ -1,0 +1,98 @@
+\chapter{Metodologia sperimentale}
+\label{ch:metodologia}
+
+Le misure sono state condotte su un cluster reale in cloud, con la stessa topologia e lo stesso dataset per i
+due sistemi, e con strumenti che rilevano l'impatto \emph{di ciascun nodo}, non solo il tempo visto dal
+client. Questo capitolo descrive infrastruttura, deploy, suite di query e strumenti di misura.
+
+\section{Infrastruttura}
+\label{sec:infra}
+
+Il cluster è composto da cinque macchine virtuali Azure nella stessa subnet privata (\Cref{tab:vm}). La
+scelta di macchine \emph{separate} è deliberata: con client e nodi DB sulla stessa macchina non si vedrebbe
+l'impatto della rete e il disco farebbe da collo di bottiglia. La macchina più capace (worker-1, 16 vCPU)
+fa da \textbf{coordinator} in Citus e ospita \emph{config server} e \emph{mongos} in MongoDB: è il punto di
+merge/instradamento e resta fisso durante lo scaling, così un coordinator potente non maschera il beneficio
+di aggiungere worker. I quattro nodi-dati (VM-1\dots VM-4, 4 vCPU ciascuno) sono \textbf{simmetrici}, così lo
+scaling è equo. Il traffico interno viaggia sugli IP privati (container in \texttt{network\_mode: host},
+niente NAT); le porte DB non sono esposte a internet.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Topologia del cluster: 5 VM Azure, stessa subnet privata.}
+  \label{tab:vm}
+  \begin{tabular}{llrrll}
+    \toprule
+    \textbf{Ruolo} & \textbf{VM (IP priv.)} & \textbf{vCPU} & \textbf{RAM} & \textbf{Citus} & \textbf{MongoDB} \\
+    \midrule
+    Coordinator & worker-1 (10.0.1.8) & 16 & 32\,GB & coordinator & config server + mongos \\
+    Data node   & VM-1 (10.0.1.4)     & 4  & 16\,GB & worker      & shard \\
+    Data node   & VM-2 (10.0.1.5)     & 4  & 16\,GB & worker      & shard \\
+    Data node   & VM-3 (10.0.1.7)     & 4  & 16\,GB & worker      & shard \\
+    Data node   & VM-4 (10.0.1.6)     & 4  & 16\,GB & worker      & shard \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Deploy e gestione dei nodi}
+\label{sec:deploy}
+
+Ogni ruolo è impacchettato in un \texttt{docker-compose} dedicato (versioni pinnate: Citus
+14.1-alpine, MongoDB 8.3), con autenticazione completa (SCRAM e \texttt{.pgpass} per Citus; keyfile e utente
+admin per Mongo). Il deploy porta su i servizi ``nudi'', \emph{non} registrati: l'aggiunta dei nodi al cluster
+avviene \textbf{a mano} (\texttt{citus\_add\_node} / \texttt{sh.addShard}), per avere il controllo necessario
+agli esperimenti di scaling. Qui emerge una differenza operativa importante: in Citus, dopo aver aggiunto un
+worker, la redistribuzione degli shard è \textbf{esplicita} (\texttt{rebalance\_table\_shards}, sincrona); in
+MongoDB è affidata al \textbf{balancer automatico}, asincrono e soggetto a soglia. Questa differenza avrà un
+peso decisivo sui risultati (\Cref{ch:risultati}).
+
+\begin{lstlisting}[style=sobrio, language=bash, caption={Deploy dei cluster, inizializzazione dello schema e caricamento del dataset (riproducibile).}]
+# Deploy dei container (versioni pinnate) su tutte le VM
+bash infra/prod/deploy/deploy-citus.sh                 # Citus: coordinator + worker
+bash infra/prod/deploy/deploy-mongo.sh                 # Mongo: config server + mongos + shard
+# Citus: schema (reference + distribuite) e dati
+docker exec -i citus psql -U postgres -d archdata < schema/relational/01_reference.sql
+docker exec -i citus psql -U postgres -d archdata < schema/relational/02_distributed.sql
+python3 data/genera.py --tenant-count 30 --dip-min 10 --dip-max 25 --seed 42 --out generato
+CITUS_CONTAINER=citus bash scripts/carica-citus.sh generato/citus
+# MongoDB: cluster a 4 shard pulito + sharding collezioni + caricamento
+MONGO_PASSWORD=... bash setup-mongo-4shard.sh
+\end{lstlisting}
+
+\section{Suite di query speculare}
+\label{sec:suite}
+
+Il confronto equo si basa su una suite di query \textbf{identica nella semantica} sui due sistemi:
+\textbf{13 letture} (L01\dots L13) e \textbf{7 scritture} (inserimenti, aggiornamenti, cancellazione), una per
+file, con nomi speculari tra la versione SQL (\texttt{.sql}) e quella MongoDB (\texttt{.js}). Le letture vanno
+dalla query puntuale single-shard (il cedolino di un dipendente) alle analitiche cross-tenant con percentili e
+join ai cataloghi (il gender pay gap mediano per livello). Ogni query è parametrica.
+
+Un accorgimento importante per un test distribuito realistico: nelle \textbf{letture} il carico
+\textbf{randomizza} i parametri (tenant, dipendente, mese) a ogni iterazione, così le richieste si distribuiscono
+sui vari shard e non colpiscono sempre lo stesso documento; nelle \textbf{scritture} il tenant è invece
+\emph{fisso}, per misurare l'effetto della co-locazione (la scrittura di un tenant colpisce un solo nodo).
+
+\section{Strumenti di misura per-nodo}
+\label{sec:misura}
+
+Per ogni query si misura la latenza e il throughput sotto \emph{carico sostenuto}, ma soprattutto
+\emph{quanto lavora ciascun nodo}. Gli strumenti sono nativi di ciascun sistema:
+\begin{itemize}
+  \item \textbf{Citus}: il carico è generato con \texttt{pgbench} (connessione persistente); i contatori
+        per-nodo (righe elaborate, tempo di esecuzione, letture da cache/disco, WAL) si leggono da
+        \texttt{pg\_stat\_statements} propagato a tutti i nodi con \texttt{run\_command\_on\_all\_nodes()},
+        con azzeramento e delta attorno a ogni misura.
+  \item \textbf{MongoDB}: il carico è un ciclo \texttt{mongosh}; i contatori per-shard vengono da
+        \texttt{serverStatus().opcounters}, l'uso di CPU/RAM da \texttt{docker stats} campionato su ogni nodo.
+  \item \textbf{Sistema operativo}: CPU, RAM e I/O di disco per nodo si campionano da \texttt{/proc} durante
+        ogni run, raccogliendo tutto in CSV strutturati (fonte dei grafici e delle tabelle del
+        \Cref{ch:risultati}).
+\end{itemize}
+
+Due note metodologiche. Le query si eseguono \emph{una alla volta}, senza accesso concorrente, così l'impatto
+è attribuibile alla singola query e leggibile su ogni nodo. E la relazione \textbf{cache/disco}: a scala
+piccola il dataset entra tutto in RAM, quindi le letture non toccano il disco (\texttt{blk\_read}${=}0$); le
+letture fisiche da disco compaiono solo quando i dati superano la RAM, cioè nell'esperimento a dati crescenti,
+ed è lì che il disco diventa il collo di bottiglia. Per questo lo scaling per nodi si misura a freddo (cache
+svuotata) e quello a dati crescenti a caldo (per vedere la capacità massima e il punto in cui la cache cede).

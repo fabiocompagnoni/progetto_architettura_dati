@@ -1,0 +1,445 @@
+\chapter{Risultati e analisi}
+\label{ch:risultati}
+
+Questo capitolo raccoglie le misure dei test e le analizza. Salvo diverso avviso i numeri sono medie su tre esecuzioni
+a freddo, ovvero la cache viene svuotata prima di ogni esecuzione, per lo scaling per nodi, e misure a caldo per lo scaling sui dati. 
+Il dataset di partenza è delle stesse dimensioni su entrambi i sistemi (30 ditte, 554 dipendenti), generato con lo script dedicato.
+
+\section{Baseline in lettura e i due regimi}
+\label{sec:baseline}
+
+Su Citus a un nodo, sotto carico sostenuto, emergono due regimi netti. Le query \textbf{single-shard} (cedolino singolo, cedolini di una ditta, riepiloghi per un tenant) stanno a \textbf{1--3\,ms} con throughput
+fino a ${\sim}680$ op/s: colpiscono un solo shard e il coordinator ha solo un overhead fisso di instradamento. Le analitiche \textbf{cross-shard} (percentili, aggregazioni cross-tenant, spesa per categoria)
+stanno a \textbf{55--85\,ms} con 13--18 op/s: ogni worker satura la CPU per lo scan (100--190\,\%, multi-core)
+e il coordinator (${\sim}40\,\%$) fa il merge. Questa distinzione tra i due regimi si ritrova in tutti gli esperimenti seguenti.
+
+\section{Scalabilità per numero di nodi (Citus)}
+\label{sec:scaling-nodi}
+
+A parità di dati si passa da 1 a 4 nodi, ridistribuendo gli shard a ogni passo. Le query cross-shard scalano
+in modo \textbf{quasi lineare} (\Cref{tab:scaling-nodi,fig:scaling-nodi}): con 4 nodi lo speedup è
+\textbf{3.8--4.6$\times$}. Le single-shard restano invece piatte: colpiscono un solo shard su un solo nodo,
+quindi aggiungere worker non le tocca (ma sono già velocissime). Il lavoro si distribuisce: la CPU e il tempo
+di esecuzione \emph{per worker} calano proporzionalmente (per L04, la CPU del worker passa da 142\,\% a 24\,\%
+e le righe per worker si dimezzano a ogni raddoppio).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Latenza (ms) al crescere dei nodi e speedup 1$\to$4. Cross-shard vs single-shard.}
+  \label{tab:scaling-nodi}
+  \begin{tabular}{lrrrrr}
+    \toprule
+    \textbf{Query} & \textbf{1 nodo} & \textbf{2 nodi} & \textbf{3 nodi} & \textbf{4 nodi} & \textbf{speedup} \\
+    \midrule
+    L04 gender gap mediano & 71.9 & 45.0 & 23.2 & 18.3 & \textbf{3.9$\times$} \\
+    L05 top-N retribuzioni & 65.8 & 33.7 & 19.4 & 14.9 & \textbf{4.4$\times$} \\
+    L06 assenteismo/mese   & 61.4 & 31.2 & 19.9 & 15.4 & \textbf{4.0$\times$} \\
+    L08 trend costo lavoro & 56.1 & 24.0 & 15.9 & 12.1 & \textbf{4.6$\times$} \\
+    L11 spesa/categoria    & 75.6 & 52.7 & 25.3 & 20.1 & \textbf{3.8$\times$} \\
+    L12 ferie residue      & 75.4 & 59.7 & 25.2 & 19.5 & \textbf{3.9$\times$} \\
+    \midrule
+    L01 cedolino singolo \emph{(single-shard)} & 1.5 & 1.5 & 1.5 & 1.5 & 1.0$\times$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Il dettaglio completo di \emph{tutte} le metriche raccolte (latenza, throughput, CPU per worker, tempo di
+esecuzione e righe elaborate per worker) per ognuna delle 13 query è in \Cref{tab:scaling-nodi-full}: mostra
+esplicitamente come, all'aumentare dei nodi, il lavoro \emph{per worker} (CPU, \texttt{exec}, righe) si
+riduca, mentre l'overhead sul coordinator resta pressoché costante.
+
+\input{capitoli/_tab-scaling-nodi}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.82\textwidth]{fig-scaling-nodi-citus}
+  \caption{Citus, scaling per nodi (tutte le 13 letture, scala log; codice query in coda a ogni linea): le
+    cross-shard calano nettamente al crescere dei nodi, le single-shard restano piatte.}
+  \label{fig:scaling-nodi}
+\end{figure}
+
+\begin{lstlisting}[style=sobrio, language=bash, caption={Esecuzione: aggiunta di un worker e rebalance, poi 3 run a freddo delle 13 letture e media (ripetuto a 1, 2, 3, 4 nodi).}]
+bash citus-add-node.sh 10.0.1.5 && bash citus-rebalance.sh       # ad ogni passo di scaling
+for i in 1 2 3; do bash azzera-cache-citus.sh; \
+  bash esegui-suite-citus.sh 10 queries/relational/letture/*.sql; done
+bash media-citus.sh
+\end{lstlisting}
+
+\section{Scalabilità per volume di dati (Citus)}
+\label{sec:scaling-dati}
+
+A numero di nodi fisso (4) si aumenta il volume dei dati. Le cross-shard \textbf{degradano in modo
+super-lineare} (\Cref{tab:scaling-dati,fig:scaling-dati}): da 30 a 480 ditte L11 passa da 20 a 114\,ms
+(5.7$\times$), con un salto netto tra 240 e 480 ditte. Le single-shard restano \textbf{piatte} (${\sim}1.5$\,ms
+a ogni scala): indicizzate e mirate a un tenant, sono insensibili al volume globale, che è il vantaggio del
+multitenant co-locato. Le letture da disco (\texttt{blk\_read}) restano nulle: a questa scala i dati stanno
+ancora in RAM, quindi il degrado è \emph{CPU-bound} (più righe da scandire in cache). L'esperimento si è
+fermato a 480 ditte perché a quel punto la tendenza era già chiara e il carico risultava distribuito su tutti
+i nodi: proseguire non avrebbe aggiunto informazione.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Latenza (ms) al crescere dei dati, a 4 nodi fissi.}
+  \label{tab:scaling-dati}
+  \begin{tabular}{lrrrr}
+    \toprule
+    \textbf{Ditte} & \textbf{L01 single-shard} & \textbf{L04 gender gap} & \textbf{L06 assenteismo} & \textbf{L11 spesa} \\
+    \midrule
+    30 (base) & 1.5 & 18.3 & 15.4 & 20.1 \\
+    60        & 1.5 & 20.4 & 17.5 & 24.6 \\
+    120       & 1.5 & 24.0 & 25.1 & 34.9 \\
+    240       & 1.4 & 30.9 & 51.2 & 66.0 \\
+    480       & 1.6 & \textbf{68.3} & \textbf{73.1} & \textbf{114.1} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Il dettaglio completo di tutte le metriche per le 13 query, a ogni scala, è in \Cref{tab:scaling-dati-full}:
+si vede come il tempo di esecuzione e le righe elaborate per worker crescano col volume, mentre le query
+single-shard restano invariate.
+
+\input{capitoli/_tab-scaling-dati}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.82\textwidth]{fig-scaling-dati-citus}
+  \caption{Citus, scaling per dati (tutte le 13 letture, 4 nodi fissi): degrado super-lineare delle
+    cross-shard; single-shard insensibili al volume.}
+  \label{fig:scaling-dati}
+\end{figure}
+
+\begin{lstlisting}[style=sobrio, language=bash, caption={Esecuzione: a 4 nodi fissi, un lotto per volta genera nuovi tenant, carica e misura a caldo (ripetuto fino a 480 ditte).}]
+bash scala-dati-citus.sh 31 30 60ditte      # +30 tenant -> 60 ditte; poi 61 60 120ditte; ...
+\end{lstlisting}
+
+\section{Scritture distribuite (Citus)}
+\label{sec:scritture-citus}
+
+Le scritture, misurate a 4 nodi (\Cref{tab:scritture-citus}), mostrano l'effetto della \textbf{co-locazione}:
+\textbf{cinque scritture su sei colpiscono un solo nodo} (quello dello shard del tenant), mentre gli altri tre
+worker restano inattivi. La scrittura di un singolo tenant \emph{non si distribuisce} aggiungendo nodi; il
+throughput aggregato scala solo distribuendo scritture su tenant diversi. Il costo cresce con le righe/tabelle
+toccate e il WAL prodotto: dalla semplice \texttt{UPDATE} (U02, 605 op/s) alla \textbf{transazione}
+multi-tabella I03 (17 op/s, ${\sim}1$\,MB di WAL) c'è un fattore ${\sim}35\times$. L'unica scrittura che tocca
+\textbf{tutti i nodi} è U03, l'aggiornamento di un dato di riferimento su una reference table (replicata
+ovunque): una riga logica, ma applicata su ogni nodo.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Scritture a 4 nodi (N${=}300$ operazioni per query).}
+  \label{tab:scritture-citus}
+  \begin{tabular}{llrrl}
+    \toprule
+    \textbf{Op.} & \textbf{Descrizione} & \textbf{lat (ms/op)} & \textbf{tps} & \textbf{dove scrive} \\
+    \midrule
+    U02 & licenziamento (update 1 riga)     & 1.7  & 605 & solo 1 nodo \\
+    U01 & coordinate bancarie               & 3.7  & 273 & solo 1 nodo \\
+    U04 & update concorrente (riga cond.)   & 3.8  & 266 & solo 1 nodo \\
+    I01 & inserimento timbratura            & 10.6 & 94  & solo 1 nodo \\
+    U03 & modifica dato di riferimento      & 21.1 & 47  & \textbf{tutti i nodi} \\
+    I03 & elaborazione cedolino (transazione)& 57.4 & 17  & solo 1 nodo \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{lstlisting}[style=sobrio, language=bash, caption={Esecuzione delle scritture (Citus): N${=}300$ ripetizioni per query, tenant fisso.}]
+bash esegui-scritture-citus.sh 300 queries/relational/scritture/*.sql
+\end{lstlisting}
+
+\section{Comportamento in presenza di guasti (Citus)}
+\label{sec:guasti-citus}
+
+Il comportamento \textbf{CP} è stato messo alla prova eseguendo una query cross-shard (L04) in un ciclo mentre
+un worker scelto a caso viene spento e poi riacceso (11 prove). Il risultato è netto e coerente: spegnendo
+\emph{qualsiasi} worker, la query fallisce per \textbf{tutta} la finestra di down (15\,s), perché ha bisogno
+degli shard di ogni nodo, quindi manca sempre qualcosa e \textbf{non restituisce risultati parziali} (le righe
+crollano da $N$ a $0$). L'error-rate medio è ${\sim}51\,\%$, il recupero è \textbf{automatico e rapido}
+(prima risposta ${\sim}0.5$\,s dopo il riavvio del container). I quattro worker danno lo stesso error-rate:
+ognuno è essenziale, nessuno ridondante (copia singola, \texttt{shard\_replication\_factor}${=}1$). È la
+consistenza scelta al posto della disponibilità.
+
+\begin{lstlisting}[style=sobrio, language=bash, caption={Esecuzione del test di guasto (Citus): L04 in loop mentre un worker a caso viene spento (10--25\,s) e riacceso, su 45\,s totali.}]
+bash test-guasto-citus.sh queries/relational/letture/L04_gender_gap_mediano.sql random 10 15 45
+\end{lstlisting}
+
+\section{MongoDB}
+\label{sec:mongo}
+
+\subsection{Scalabilità per shard: il balancer non distribuisce a scala piccola}
+Sul cluster documentale il regime ``più shard, stessi dati'' ha rivelato un comportamento che è esso stesso il
+risultato più interessante. Con il dataset base (\texttt{cedolini} ${\approx}42$\,MB), il balancer di MongoDB
+\textbf{non distribuisce}: con la dimensione di range di default (128\,MB) la soglia di migrazione è 384\,MB,
+mai raggiunta, quindi resta un solo chunk su un solo shard. Anche forzando le condizioni, con il range
+ridotto a 4\,MB (soglia 12\,MB) e uno \emph{split manuale} in 10 chunk, il balancer, pur attivo (\texttt{mode: full},
+888 round eseguiti), \textbf{non ha migrato nulla}. Di conseguenza il secondo shard resta inattivo (0.2\,\%
+CPU) e le prestazioni a 1 e 2 shard sono \textbf{identiche} (\Cref{tab:mongo-shard}): aggiungere shard non
+porta alcun beneficio. È l'opposto di Citus, dove il rebalance esplicito distribuisce sempre. Il balancer
+distribuisce solo a \emph{volume grande}: già a ${\approx}230$ ditte (cedolini ${>}300$\,MB) inizia a spargere
+i chunk sugli shard, e il comportamento dipende dunque dalla scala.
+
+\begin{table}[htbp]
+  \centering
+  \caption{MongoDB, latenza (ms) a 1 e 2 shard: identica, perché il 2\textsuperscript{o} shard resta inattivo.}
+  \label{tab:mongo-shard}
+  \begin{tabular}{lrr}
+    \toprule
+    \textbf{Query} & \textbf{1 shard} & \textbf{2 shard} \\
+    \midrule
+    L04 gender gap (aggregazione) & 7.2  & 7.2  \\
+    L11 spesa per categoria        & 12.4 & 12.5 \\
+    L01 cedolino singolo (mirata)  & 2.3  & 2.3  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{lstlisting}[style=sobrio, language=bash, caption={Esecuzione dello scaling per shard (MongoDB): aggiunta automatica degli shard e 3 run a freddo delle letture per passo.}]
+export MONGO_PASSWORD=...
+bash scala-nodi-mongo.sh 4        # dal numero di shard attuale fino a 4
+\end{lstlisting}
+
+\subsection{Scalabilità per volume di dati (MongoDB)}
+\label{sec:mongo-dati}
+Applicando lo \emph{stesso} protocollo delle controparti Citus (identica suite, misura a caldo, carico
+randomizzato, contatori per shard), a numero di shard fisso (4) si aumenta il volume dei dati. Qui si completa
+il quadro emerso con lo scaling per shard: mentre a scala piccola il balancer non distribuiva, \textbf{a volume
+grande distribuisce davvero}. A ogni scala i
+\texttt{cedolini} risultano spartiti su \textbf{tutti e 4 gli shard}, attivi al 48--65\,\% di CPU. Le query
+cross-shard degradano super-linearmente (\Cref{tab:mongo-dati}): L04 26$\to$185\,ms, L11 34$\to$308\,ms; le
+più pesanti, L06 e L12, crescono a dismisura (302$\to$2834\,ms e 476$\to$4786\,ms) perché aggregano tutti i cedolini
+scorrendone gli array annidati: a scala grande il costo dell'embedding sull'intera collezione diventa
+dominante. Le query mirate restano piatte (L01 ${\sim}2.6$\,ms).
+
+\begin{table}[htbp]
+  \centering
+  \caption{MongoDB, scalabilità per dati (4 shard fissi): latenza (ms) al crescere del volume.}
+  \label{tab:mongo-dati}
+  \begin{tabular}{rrrrrr}
+    \toprule
+    \textbf{Ditte} & \textbf{L01} & \textbf{L04} & \textbf{L11} & \textbf{L06} & \textbf{L12} \\
+    \midrule
+     230 & 2.6 & 26.0  & 34.2  & 301.6  & 476.2  \\
+     630 & 2.6 & 61.6  & 80.0  & 729.1  & 1174.1 \\
+    1430 & 2.7 & 122.2 & 178.0 & 1684.9 & 2759.5 \\
+    2630 & 2.7 & 185.2 & 308.0 & 2833.8 & 4786.3 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Il dettaglio completo per tutte le 13 query e tutte le metriche (latenza, throughput, CPU media per shard,
+I/O di disco letto e scritto) è in \Cref{tab:scaling-dati-mongo-full}. Due osservazioni: la CPU cresce su
+\emph{tutti} e quattro gli shard (a conferma che il balancer, a questo volume, ha distribuito), e le letture
+da disco restano nulle anche a 2630 ditte: il working set è ancora servito dalla cache WiredTiger, quindi
+il degrado è dominato dal numero di documenti esaminati, non dall'I/O.
+
+\input{capitoli/_tab-scaling-dati-mongo}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.82\textwidth]{fig-scaling-dati-mongo}
+  \caption{MongoDB, scaling per dati (tutte le 13 letture, 4 shard fissi, scala log): L06 e L12 crescono a
+    dismisura col volume, le single-shard restano piatte.}
+  \label{fig:mongo-dati}
+\end{figure}
+
+\begin{lstlisting}[style=sobrio, language=bash, caption={Esecuzione dello scaling per dati (MongoDB): 4 shard fissi, lotti crescenti di tenant, misura a caldo.}]
+export MONGO_PASSWORD=...
+bash scala-dati-mongo.sh 64 200 400 800     # +200/+400/+800 tenant -> 230, 630, 1430 ditte
+\end{lstlisting}
+
+\subsection{Scritture (MongoDB)}
+\label{sec:mongo-scritture}
+Le scritture (4 shard, N${=}300$, tenant fisso) confermano la co-locazione e, su U03, producono il contrasto
+pro-relazionale più marcato dell'intero lavoro (\Cref{tab:mongo-scritture}). Le scritture \emph{intra-tenant}
+(I01, I03, U01, U02, U04) colpiscono \textbf{un solo shard} (quello del tenant): il carico è tutto su
+\texttt{10.0.1.4} (CPU ${\sim}5\,\%$), gli altri tre inattivi, esattamente come in Citus. \textbf{U03}
+invece, che aggiorna una categoria \emph{denormalizzata} in tutti i cedolini, è un \texttt{updateMany} che
+tocca \textbf{tutti e 4 gli shard al 91--99\,\% di CPU}: 356\,ms per operazione e appena 2.8\,op/s. In Citus
+la stessa modifica è \textbf{una riga} su una reference table (21\,ms, 47\,op/s): un fattore ${\sim}17\times$
+a favore del relazionale.
+
+\begin{table}[htbp]
+  \centering
+  \caption{MongoDB, scritture a 4 shard (N${=}300$): la co-locazione (una scrittura, uno shard) e il mass-update U03.}
+  \label{tab:mongo-scritture}
+  \begin{tabular}{llrrl}
+    \toprule
+    \textbf{Op.} & \textbf{Descrizione} & \textbf{lat (ms/op)} & \textbf{tps} & \textbf{dove scrive} \\
+    \midrule
+    U02 & licenziamento                & 3.6   & 279 & solo 1 shard \\
+    U01 & coordinate bancarie          & 3.6   & 279 & solo 1 shard \\
+    U04 & update concorrente           & 3.6   & 277 & solo 1 shard \\
+    I01 & inserimento timbratura       & 8.6   & 116 & solo 1 shard \\
+    I03 & elaborazione cedolino        & 11.1  & 90  & solo 1 shard \\
+    U03 & modifica dato di riferimento & 355.9 & 2.8 & \textbf{tutti i 4 shard (91--99\,\% CPU)} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{fig-scritture}
+  \caption{Scritture a confronto (4 nodi/shard, N${=}300$): latenza per operazione, Citus vs MongoDB.}
+  \label{fig:scritture}
+\end{figure}
+
+\begin{lstlisting}[style=sobrio, language=bash, caption={Esecuzione delle scritture (MongoDB): N${=}300$ ripetizioni per query, tenant fisso.}]
+bash esegui-scritture-mongo.sh 300 queries/document/scritture/*.js
+\end{lstlisting}
+
+\subsection{Comportamento in presenza di guasti (MongoDB)}
+\label{sec:mongo-guasti}
+Con lo stesso protocollo del test di guasto Citus, si esegue L04 in loop mentre lo shard che ospita i dati
+del tenant (\texttt{10.0.1.4}) viene spento e riacceso (10 run). Il comportamento è \textbf{CP}: mentre lo
+shard è giù la query fallisce e le righe crollano da 59\,299 a \textbf{0} (nessun risultato parziale), per
+tornare al valore pieno al rientro; il recupero è automatico (${\sim}0.25$\,s dopo il riavvio) e
+l'indisponibilità dura esattamente il tempo di down (${\sim}15$\,s) (\Cref{tab:mongo-guasti}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{MongoDB, guasto di uno shard sotto carico di lettura (10 run).}
+  \label{tab:mongo-guasti}
+  \begin{tabular}{lrrll}
+    \toprule
+    \textbf{Shard spento} & \textbf{run} & \textbf{error-rate} & \textbf{finestra / recupero} & \textbf{righe (su$\to$giù$\to$su)} \\
+    \midrule
+    10.0.1.4 (con i dati) & 10 & 7.0\,\% & 10.1$\to$25.2\,s / ${\sim}0.25$\,s & 59\,299 $\to$ \textbf{0} $\to$ 59\,299 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.8\textwidth]{fig-guasti}
+  \caption{Guasto di un nodo sotto carico L04, Citus e MongoDB: righe restituite (normalizzate) nel tempo. In
+    entrambi crollano a 0 durante il down (banda) e recuperano al rientro (comportamento CP).}
+  \label{fig:guasti}
+\end{figure}
+
+Un dettaglio metodologicamente importante: l'error-rate è solo ${\sim}7\,\%$, contro il ${\sim}51\,\%$ di
+Citus, \emph{pur avendo la stessa indisponibilità reale} (15\,s). La ragione è il \textbf{diverso
+comportamento del client}: il \texttt{mongos} \textbf{si blocca in attesa} dello shard irraggiungibile fino
+al timeout (5\,s per operazione), quindi nella finestra di down passano poche operazioni-errore ``lunghe'';
+Citus invece \textbf{rifiuta la connessione all'istante} (fail-fast) e ne accumula molte di più. L'error-rate
+grezzo non è dunque direttamente comparabile: va letto insieme al \emph{modo} di fallire, cioè \textbf{timeout
+bloccanti} in Mongo contro \textbf{errori rapidi} in Citus.
+
+\begin{lstlisting}[style=sobrio, language=bash, caption={Esecuzione del test di guasto (MongoDB): L04 in loop, arresto/riavvio dello shard con i dati.}]
+bash test-guasto-mongo.sh queries/document/letture/L04_gender_gap_mediano.js 10.0.1.4 10 15 45
+\end{lstlisting}
+
+\section{Confronto tra i due sistemi}
+\label{sec:confronto}
+
+Il confronto si articola su più assi (\Cref{tab:confronto,tab:confronto-completo}):
+\begin{itemize}
+  \item \textbf{Analitica}: dipende dal tipo di query. Dove l'aggregato è servito dall'embedding (percentili
+        L04, spesa per categoria L11) MongoDB è più veloce, perché evita le join (a 1 nodo/shard L04 7.2 vs
+        71.9\,ms, L11 12.4 vs 75.6\,ms). Ma sulle query che \textbf{attraversano più entità} (assenteismo L06,
+        ferie residue L12, riepilogo assenze L13, che toccano assenze e ratei) vince Citus, e di molto: a pari
+        scala (${\sim}230$--$240$ ditte, 4 nodi) L06 51 vs 302\,ms, L12 28 vs 476\,ms, L13 3.6 vs 34\,ms.
+        MongoDB paga lo scan degli array annidati sull'intera collezione, Citus sfrutta i join indicizzati
+        sulle tabelle normalizzate.
+  \item \textbf{Scaling}: Citus distribuisce e scala \emph{sempre} (rebalance esplicito, ${\sim}4\times$ con
+        4 nodi); MongoDB invece dipende dalla scala: a dati piccoli il balancer non distribuisce (nessuno
+        scaling), a volume grande sì (tutti gli shard attivi, cfr.\ \Cref{sec:mongo-dati}).
+  \item \textbf{Scritture}: entrambi co-locano la scrittura di un tenant su un solo nodo/shard, ma sul dato
+        di riferimento (U03) il relazionale è nettamente più efficiente (1 riga, 21\,ms vs mass-update,
+        356\,ms).
+  \item \textbf{Guasti}: entrambi CP con la stessa indisponibilità reale, ma \emph{modo} di fallire opposto
+        (fail-fast vs timeout bloccante).
+  \item \textbf{Query mirate} (cedolino singolo): comparabili (${\sim}$1--2\,ms) su entrambi.
+\end{itemize}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Confronto in latenza (ms) a pari numero di nodi (1) e capacità di scalare.}
+  \label{tab:confronto}
+  \begin{tabular}{lrrl}
+    \toprule
+    \textbf{Query} & \textbf{Citus} & \textbf{MongoDB} & \textbf{Scaling coi nodi} \\
+    \midrule
+    L04 gender gap    & 71.9 & \textbf{7.2}  & Citus ${\sim}4\times$; Mongo no (scala piccola) \\
+    L11 spesa/categoria & 75.6 & \textbf{12.4} & Citus ${\sim}4\times$; Mongo no (scala piccola) \\
+    L01 cedolino singolo & \textbf{1.5} & 2.3 & entrambi piatti (mirata) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{minipage}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{fig-scaling-nodi-confronto}
+    \subcaption{Scaling per nodi su L04: Citus scala, Mongo piatto (scala piccola).}
+    \label{fig:scaling-confronto}
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{fig-letture-assolute}
+    \subcaption{Latenza assoluta delle 13 letture a scala base (log).}
+    \label{fig:letture-assolute}
+  \end{minipage}
+  \caption{Confronto Citus vs MongoDB: capacità di scalare coi nodi (a) e velocità assoluta in lettura (b).}
+  \label{fig:confronto}
+\end{figure}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Confronto complessivo Citus vs MongoDB sui diversi assi misurati.}
+  \label{tab:confronto-completo}
+  \begin{tabularx}{\textwidth}{@{}lXX@{}}
+    \toprule
+    \textbf{Aspetto} & \textbf{PostgreSQL + Citus} & \textbf{MongoDB} \\
+    \midrule
+    Distribuzione dei dati            & esplicita (\texttt{rebalance}, deterministica) & automatica (balancer, soggetta a soglia) \\
+    Scaling per nodi (dati piccoli)   & ${\sim}4\times$ con 4 nodi (cross-shard)       & nessuno (balancer sotto soglia) \\
+    Scaling per dati (volume grande)  & cross-shard super-lineari                     & idem, e il balancer distribuisce \\
+    Analitica sull'aggregato (L04, L11) & più lenta (join)                           & più veloce (embedding) \\
+    Query multi-entità (L06, L12, L13)  & \textbf{più veloce} (join indicizzati)     & molto più lenta (array annidati) \\
+    Scrittura intra-tenant            & 1 nodo (co-locazione)                         & 1 shard (co-locazione) \\
+    Dato di riferimento (U03)         & \textbf{1 riga: 21\,ms, 47\,op/s}             & mass-update: 356\,ms, 2.8\,op/s \\
+    Guasto (modo di fallire)          & fail-fast (err ${\sim}51\,\%$)                & timeout bloccante (err ${\sim}7\,\%$) \\
+    Guasto (indisponibilità reale)    & ${\sim}15$\,s, recupero ${\sim}0.5$\,s        & ${\sim}15$\,s, recupero ${\sim}0.25$\,s \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+Il confronto diretto sulle \textbf{scritture} (\Cref{tab:confronto-scritture}) dà esiti opposti a seconda
+dell'operazione: sull'inserimento del cedolino (I03) è molto più rapido MongoDB (11 vs 57\,ms), perché scrive
+un solo documento invece di una transazione su sette tabelle; sull'aggiornamento del dato di riferimento (U03)
+è molto più rapido Citus (21 vs 356\,ms), perché tocca una riga su una reference table invece di aggiornare in massa tutti gli
+shard. Le scritture semplici (U01/U02/U04) sono equivalenti. Sull'\textbf{analitica}
+(\Cref{tab:confronto}) MongoDB è più veloce in assoluto grazie all'embedding.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Scritture a confronto (4 nodi/shard, N${=}300$): latenza e throughput per operazione.}
+  \label{tab:confronto-scritture}
+  \begin{tabular}{llrrrr}
+    \toprule
+    & & \multicolumn{2}{c}{\textbf{Citus}} & \multicolumn{2}{c}{\textbf{MongoDB}} \\
+    \cmidrule(lr){3-4}\cmidrule(lr){5-6}
+    \textbf{Op.} & \textbf{Descrizione} & \textbf{ms/op} & \textbf{op/s} & \textbf{ms/op} & \textbf{op/s} \\
+    \midrule
+    U02 & licenziamento          & 1.7  & 605 & 3.6   & 279 \\
+    U01 & coordinate bancarie    & 3.7  & 273 & 3.6   & 279 \\
+    U04 & update concorrente     & 3.8  & 266 & 3.6   & 277 \\
+    I01 & inserimento timbratura & 10.6 & 94  & 8.6   & 116 \\
+    I03 & elaborazione cedolino  & 57.4 & 17  & \textbf{11.1}  & \textbf{90} \\
+    U03 & dato di riferimento    & \textbf{21.1} & \textbf{47} & 355.9 & 2.8 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Il contrasto tra i modelli si vede meglio sulle coppie deliberate. Il \textbf{cedolino completo} è
+pro-documentale: una \texttt{findOne} su un documento (\Cref{lst:l10-mongo}) contro l'assemblaggio da sette
+tabelle in Citus. Il \textbf{dato di riferimento} è pro-relazionale: una riga su una reference table
+(\Cref{lst:u03-citus}) contro un \texttt{updateMany} di centinaia di documenti denormalizzati in Mongo.
+
+\begin{lstlisting}[style=sobrio, language=Java, caption={Cedolino completo in MongoDB: un solo documento (pro-documentale).}, label={lst:l10-mongo}]
+db.cedolini.findOne({ tenant_id: 1, dipendente_id: 7, anno: 2026, mese: 6 });
+\end{lstlisting}
+
+\begin{lstlisting}[style=sobrio, language=SQL, caption={Modifica di un dato di riferimento in Citus: una riga (pro-relazionale).}, label={lst:u03-citus}]
+UPDATE tipo_voce SET categoria = 'WELFARE' WHERE codice = '0401';   -- 1 riga (in Mongo: updateMany su N documenti)
+\end{lstlisting}

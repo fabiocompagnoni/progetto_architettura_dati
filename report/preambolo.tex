@@ -1,0 +1,96 @@
+% ---------------------------------------------------------------------------
+% Preambolo: pacchetti e impostazioni tipografiche
+% ---------------------------------------------------------------------------
+
+% Lingua e codifica
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{indentfirst}
+
+% Impaginazione
+\usepackage[a4paper, top=3cm, bottom=3cm, left=3cm, right=2.7cm]{geometry}
+\usepackage[headsepline]{scrlayer-scrpage}
+\pagestyle{scrheadings}
+\setlength{\emergencystretch}{2em}
+
+% Matematica e simboli
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% Figure e tabelle
+\usepackage{graphicx}
+\graphicspath{{figure/}}
+\usepackage{pdflscape}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\captionsetup{font=small, labelfont=bf}
+% Piazzamento float: riempire di più le pagine ed evitare pagine mezze vuote
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.75}
+\setcounter{topnumber}{3}
+\setcounter{totalnumber}{5}
+
+% Numeri, unità di misura, grafici da CSV
+\usepackage{siunitx}
+\sisetup{output-decimal-marker={,}, group-separator={.}, per-mode=symbol}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{arrows.meta, positioning}
+
+% Codice sorgente (SQL, mongosh/JS, shell)
+\usepackage{listings}
+\usepackage{xcolor}
+\definecolor{codebg}{gray}{0.97}
+\definecolor{codekw}{rgb}{0.10,0.10,0.55}
+\definecolor{codecm}{rgb}{0.35,0.45,0.35}
+\definecolor{codest}{rgb}{0.55,0.25,0.10}
+\lstdefinestyle{sobrio}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{codekw}\bfseries,
+  commentstyle=\color{codecm}\itshape,
+  stringstyle=\color{codest},
+  numberstyle=\ttfamily\scriptsize\color{gray},
+  numbers=left, numbersep=8pt,
+  frame=single, rulecolor=\color{gray!40},
+  breaklines=true, showstringspaces=false,
+  tabsize=2, columns=fullflexible,
+  captionpos=b,
+}
+\lstset{style=sobrio}
+
+% Elenchi
+\usepackage{enumitem}
+\setlist{itemsep=2pt, topsep=3pt}
+
+% Bibliografia
+\usepackage[autostyle, italian=guillemets]{csquotes}
+\usepackage[backend=biber, style=numeric-comp, sorting=none, giveninits=true]{biblatex}
+\addbibresource{bibliografia.bib}
+
+% Collegamenti (caricare tardi) e riferimenti incrociati
+\usepackage[hidelinks, breaklinks=true]{hyperref}
+\usepackage[nameinlink, italian]{cleveref}
+
+% Font intestazioni KOMA più sobrio
+\setkomafont{disposition}{\normalfont\bfseries}
+\addtokomafont{chapter}{\Large}
+\renewcommand*{\chapterheadstartvskip}{\vspace*{1.2\baselineskip}}
+
+% Segnaposto da compilare (evidenziati in rosso finché presenti)
+\newcommand{\TODO}[1]{\textcolor{red}{\textbf{[#1]}}}
+% Nota di lavorazione: visibile solo in modalità bozza (\notebozza attivo)
+\newif\ifnotebozza\notebozzafalse
+\newcommand{\nota}[1]{\ifnotebozza\marginpar{\footnotesize\color{blue!60}#1}\fi}

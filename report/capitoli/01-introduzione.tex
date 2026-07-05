@@ -1,0 +1,52 @@
+\chapter{Introduzione}
+\label{ch:introduzione}
+
+Questo elaborato valuta empiricamente se e quando un DBMS distribuito sia adatto a un carico applicativo reale di tipo HR/retributivo (ditte, dipendenti, contratti, presenze e cedolini paga in regime
+\emph{multitenant}), confrontando due sistemi che rappresentano filosofie opposte di gestione dei dati:
+
+\begin{itemize}
+  \item \textbf{PostgreSQL + Citus}: un DBMS \emph{relazionale} reso realmente distribuito dall'estensione
+        Citus (un coordinator e $N$ worker), con schema rigido, SQL completo, transazioni ACID e consistenza
+        forte;
+  \item \textbf{MongoDB}: un DBMS \emph{documentale} (sharded cluster), con schema flessibile, dati
+        organizzati in documenti annidati e distribuzione automatica tramite il balancer.
+\end{itemize}
+
+I due sistemi appartengono alla stessa classe rispetto al teorema CAP (entrambi \textbf{CP}) ma hanno modelli di dati molto diversi: questo permette di capire quando ciascun modello rappresenta bene questo tipo di dati e come si comportano in ambiente distribuito.
+
+\section{Contesto e motivazione}
+\label{sec:usecase}
+
+La scelta del dominio non è casuale: nasce da una collaborazione lavorativa con un'azienda di consulenza HR,
+tra i cui servizi principali c'è la creazione e l'elaborazione dei cedolini paga. Partendo da \textbf{file XML
+di paghe reali}, è sorta una domanda concreta: come modellare al meglio questi dati, sia con un database
+\emph{relazionale} sia con uno \emph{documentale} (non relazionale). In un contesto realistico con
+\textbf{migliaia di dipendenti e di aziende}, si tratta poi di capire quale dei due sistemi si comporti meglio
+e quindi quale convenga implementare in produzione.
+
+Prima di avviare i test sono stati studiati i fondamenti teorici dei due sistemi e lette le rispettive
+documentazioni ufficiali: il modello dei dati, il linguaggio di interrogazione e il modo in cui affrontano
+scalabilità e transazioni concorrenti. Solo dopo si è passati alla verifica sperimentale. L'elaborato segue
+questa struttura: una parte teorica (\Cref{ch:dominio}) e una sperimentale su un cluster reale
+(\Cref{ch:metodologia,ch:risultati}), in cui si confronta quanto affermato in teoria con i dati misurati. Per il vincolo GDPR i dati reali non sono utilizzabili direttamente: il dataset è
+quindi sintetico ma \emph{calibrato} sulla forma dei cedolini reali (\Cref{sec:dati}).
+
+\section{Requisiti e criteri di valutazione}
+\label{sec:requisiti}
+
+Il lavoro è organizzato attorno ai requisiti richiesti. Occorre disporre di un dataset ampio (o reso
+artificialmente grande) da interrogare con query a complessità variabile su entrambi i sistemi, e valutare
+\emph{quando il modello modella bene} il dominio (\Cref{ch:progettazione}). Vanno poi verificati la gestione
+dei cambiamenti di schema in corso d'opera (\Cref{sec:evoluzione}), il comportamento in ambiente distribuito
+in lettura, scrittura (transazioni) e in presenza di guasti, e la scalabilità nei due regimi: a parità di
+dati aggiungendo nodi, e a parità di nodi aumentando il volume dei dati. Questi ultimi aspetti sono misurati
+sperimentalmente (\Cref{ch:metodologia,ch:risultati}).
+
+\section{Approccio e struttura}
+\label{sec:approccio}
+
+Il metodo è sperimentale: entrambi i sistemi sono stati installati su un cluster di 5 macchine virtuali in
+cloud, alimentati con lo \emph{stesso dataset} sintetico (calibrato su cedolini reali) e sollecitati con una
+suite di query identica nella semantica. Per ogni prova si sono raccolte latenza, throughput e uso di
+risorse (CPU, memoria, I/O di rete e disco) \emph{di ciascun nodo}, così da osservare non solo \emph{quanto}
+costa un'operazione, ma \emph{come} il lavoro si distribuisce nel cluster.

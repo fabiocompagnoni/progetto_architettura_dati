@@ -1,0 +1,58 @@
+% ===========================================================================
+% Architetture Dati - Elaborato d'esame
+% Compilazione: latexmk -pdf report.tex   (richiede biber per la bibliografia)
+% ===========================================================================
+\documentclass[11pt, a4paper, oneside, numbers=noenddot]{scrreprt}
+
+% --- Dati dell'elaborato ---------------------------------------------------
+\newcommand{\titoloElaborato}{Progetto Architetture Dati - Confronto scalabilità tra DBMS relazionale e non relazionale}
+\newcommand{\sottotitoloElaborato}{Valutazione empirica della scalabilità in ambiente distribuito di PostgreSQL e MongoDB}
+\newcommand{\autore}{Fabio Compagnoni}
+\newcommand{\matricola}{944954}
+\newcommand{\ateneo}{Universit\`a degli Studi di Milano Bicocca}
+\newcommand{\dipartimento}{Dipartimento di Informatica, Sistemistica e Comunicazione}
+\newcommand{\corso}{Corso di Laurea Magistrale in Informatica}
+\newcommand{\corsoEsame}{Architetture Dati}
+\newcommand{\docente}{Prof.\ Andrea Maurino}
+\newcommand{\annoacc}{2025/2026}
+% --------------------------------------------------------------------------
+
+\input{preambolo}
+
+\hypersetup{
+  pdftitle={\titoloElaborato},
+  pdfauthor={Fabio Compagnoni},
+  pdfsubject={Progetto Architetture Dati}
+}
+
+\begin{document}
+
+\input{frontespizio}
+
+\pagenumbering{arabic}
+
+% 1. Introduzione: obiettivo, i due sistemi, cosa si valuta (requisiti)
+\input{capitoli/01-introduzione}
+
+% 2. Dominio e scelte progettuali: perche' HR, i dati, perche' Citus e Mongo,
+%    i concetti (modello relazionale vs documentale, CAP) usati per decidere
+\input{capitoli/02-dominio-scelte}
+
+% 3. Progettazione della base di dati: ER concettuale (semplificato + completo),
+%    schema logico relazionale (Citus), schema documentale (MongoDB)
+\input{capitoli/03-progettazione}
+
+% 4. Metodologia sperimentale: infrastruttura, deploy, suite di query, misura
+\input{capitoli/04-metodologia}
+
+% 5. Risultati e analisi: scalabilita' nodi/dati, scritture, guasti; Citus vs Mongo
+%    (il cuore: tabelle, grafici, confronti)
+\input{capitoli/05-risultati}
+
+% 6. Conclusioni: quando conviene ciascun sistema, limiti
+\input{capitoli/06-conclusioni}
+
+\clearpage
+\printbibliography[heading=bibintoc]
+
+\end{document}
