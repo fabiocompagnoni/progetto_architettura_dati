@@ -17,6 +17,7 @@ snap_disk() { nssh "$1" "awk '\$3~/^(sd[a-z]+|nvme[0-9]+n[0-9]+|vd[a-z]+|xvd[a-z
 
 # shard attivi: IP privati da config.shards (host tipo "shardN/10.0.1.5:27018")
 mapfile -t SHARD < <(mongos --eval "db.getSiblingDB('config').shards.find().toArray().forEach(s=>print(s.host.replace(/^.*\//,'').replace(/:.*/,'')))")
+chunk=$(mongos --eval "print((db.getSiblingDB('config').settings.findOne({_id:'chunksize'})||{value:128}).value)" 2>/dev/null | tail -1)
 
 # wrapper: la query in una funzione (const locali ad ogni chiamata) ripetuta per dur secondi
 tmp=$(mktemp)
@@ -31,7 +32,7 @@ done
 
 echo "== $qname · ${dur}s · ${#SHARD[@]} shard =="
 t0=$(date +%s%3N)
-iter=$(mongos "$db" < "$tmp" | sed -n 's/^ITER=//p')
+iter=$(mongos "$db" < "$tmp" | grep -oE 'ITER=[0-9]+' | tail -1 | cut -d= -f2)
 t1=$(date +%s%3N)
 rm -f "$tmp"
 wall=$((t1-t0))
@@ -45,7 +46,7 @@ declare -A DR1 DW1
 for ip in "${SHARD[@]}"; do d=$(snap_disk "$ip"); DR1[$ip]=${d%% *}; DW1[$ip]=${d##* }; done
 
 mkdir -p "$(dirname "$csv")"
-[ -f "$csv" ] || echo "query,shard_totali,shard,cpu_pct,mem_pct,disk_read_mb,disk_write_mb,lat_ms,tps,iter,opcounters_delta" > "$csv"
+[ -f "$csv" ] || echo "query,shard_totali,shard,cpu_pct,mem_pct,disk_read_mb,disk_write_mb,lat_ms,tps,iter,opcounters_delta,chunk_mb" > "$csv"
 
 echo; printf '%-10s %6s %6s %10s %10s\n' shard cpu% mem% discoR_MB discoW_MB
 for ip in "${SHARD[@]}"; do
@@ -54,6 +55,6 @@ for ip in "${SHARD[@]}"; do
   drm=$(awk "BEGIN{printf \"%.1f\", (${DR1[$ip]}-${DR0[$ip]})*512/1048576}")
   dwm=$(awk "BEGIN{printf \"%.1f\", (${DW1[$ip]}-${DW0[$ip]})*512/1048576}")
   printf '%-10s %6s %6s %10s %10s\n' "$ip" "$cpu" "$mem" "$drm" "$dwm"
-  echo "$qname,${#SHARD[@]},$ip,$cpu,$mem,$drm,$dwm,$lat,$tps,$iter,$((opc_after-opc_before))" >> "$csv"
+  echo "$qname,${#SHARD[@]},$ip,$cpu,$mem,$drm,$dwm,$lat,$tps,$iter,$((opc_after-opc_before)),$chunk" >> "$csv"
 done
 echo "-> $csv"
