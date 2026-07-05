@@ -1,7 +1,5 @@
 # Dati e risultati generati
-benchmark/results/*
 !benchmark/results/.gitkeep
-!benchmark/results/citus/
 data/generato/
 
 # Report LaTeX (artefatti di build)
