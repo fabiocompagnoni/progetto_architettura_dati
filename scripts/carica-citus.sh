@@ -4,7 +4,8 @@
 set -euo pipefail
 
 dir=${1:-data/generato/citus}
-psql="docker exec -i citus-coordinator psql -U postgres -d archdata -q -v ON_ERROR_STOP=1"
+container=${CITUS_CONTAINER:-citus-coordinator}
+psql="docker exec -i $container psql -U postgres -d archdata -q -v ON_ERROR_STOP=1"
 
 ordine=(
   settore_ccnl ccnl suddivisione livello comune ateco tipo_voce tipo_contributo causale_assenza
