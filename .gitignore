@@ -2,25 +2,24 @@
 !benchmark/results/.gitkeep
 data/generato/
 
-# Report LaTeX (artefatti di build)
-report/*.aux
-report/*.log
-report/*.out
-report/*.toc
-report/*.bbl
-report/*.blg
-report/*.synctex.gz
-report/*.fls
-report/*.fdb_latexmk
+# Report LaTeX (artefatti di build, a qualsiasi profondità: report/ e report/figure/)
+report/**/*.aux
+report/**/*.log
+report/**/*.out
+report/**/*.toc
+report/**/*.lof
+report/**/*.lot
+report/**/*.bbl
+report/**/*.bcf
+report/**/*.blg
+report/**/*.run.xml
+report/**/*.synctex.gz
+report/**/*.fls
+report/**/*.fdb_latexmk
+report/**/*.xdv
+report/**/*.out.ps
 
-# Figure LaTeX
-report/figure/*.pdf
-report/figure/*.png
-report/figure/*.aux
-report/figure/*.log
-report/figure/*.synctex.gz
-report/figure/*.fls
-report/figure/*.fdb_latexmk
+
 
 # Python
 __pycache__/
@@ -45,3 +44,4 @@ req.md
 *.swp
 .idea/
 .vscode/
+teoria.md
