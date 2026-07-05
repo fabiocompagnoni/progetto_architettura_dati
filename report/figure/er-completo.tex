@@ -1,94 +1,179 @@
-\documentclass[border=10pt]{standalone}
+\documentclass[border=12pt]{standalone}
 \usepackage[utf8]{inputenc}
 \usepackage{tikz}
-\usetikzlibrary{shapes.geometric, arrows.meta}
+\usetikzlibrary{shapes.geometric, arrows.meta, calc}
 
 \tikzset{
-  entita/.style    = {rectangle, draw, thick, fill=blue!8, minimum width=20mm, minimum height=8mm, font=\scriptsize, inner sep=2pt},
-  debole/.style    = {entita, double, double distance=1.3pt},
-  rel/.style       = {diamond, draw, thick, fill=orange!15, aspect=2, inner sep=0pt, minimum width=11mm, minimum height=6mm, font=\tiny},
-  c/.style         = {font=\tiny, fill=white, inner sep=0.8pt},
-  l/.style         = {thick},
-  isa/.style       = {thick, -{Triangle[open, length=3mm, width=4mm]}}
+  entita/.style = {rectangle, draw, thick, fill=blue!8, minimum width=17mm, minimum height=7mm, font=\scriptsize, inner sep=2pt},
+  debole/.style = {entita, double, double distance=1.3pt},
+  rel/.style    = {diamond, draw, thick, fill=orange!15, aspect=2, inner sep=0pt, minimum width=9mm, minimum height=5mm, font=\tiny},
+  attr/.style   = {circle, draw, thick, fill=white, minimum size=4pt, inner sep=0},
+  pk/.style     = {circle, draw, thick, fill=black, minimum size=4pt, inner sep=0},
+  et/.style     = {font=\tiny, inner sep=1pt},
+  c/.style      = {font=\tiny, fill=white, inner sep=0.6pt},
+  link/.style   = {thick},
+  isa/.style    = {thick, -{Triangle[open, length=3mm, width=4mm]}}
+}
+
+% ------- attributi impilati su un lato, con archi PERPENDICOLARI al bordo -------
+% i punti d'attacco sono distribuiti sul bordo (non convergono in un unico punto)
+
+% lato SINISTRO: archi orizzontali, etichette a sinistra
+% #1 nodo  #2 offset y del primo  #3 passo  #4 lunghezza arco  #5 lista stile/testo
+\newcommand{\stackL}[5]{%
+  \foreach[count=\i from 0] \s/\t in {#5}{%
+    \coordinate (p) at ($(#1.west)+(0,{#2-\i*#3})$);
+    \node[\s] (#1-l\i) at ($(p)+(-#4,0)$) {};
+    \node[et,left] at ($(#1-l\i)+(-0.12,0)$) {\t};
+    \draw[link] (p) -- (#1-l\i);
+  }%
+}
+% lato DESTRO: archi orizzontali, etichette a destra
+\newcommand{\stackR}[5]{%
+  \foreach[count=\i from 0] \s/\t in {#5}{%
+    \coordinate (p) at ($(#1.east)+(0,{#2-\i*#3})$);
+    \node[\s] (#1-r\i) at ($(p)+(#4,0)$) {};
+    \node[et,right] at ($(#1-r\i)+(0.12,0)$) {\t};
+    \draw[link] (p) -- (#1-r\i);
+  }%
+}
+% comb in ALTO: archi verticali, etichette in alto, altezze ALTERNATE (vicino/lontano)
+% #1 nodo  #2 offset x del primo  #3 passo  #4 arco corto  #5 arco lungo  #6 lista
+\newcommand{\combT}[6]{%
+  \foreach[count=\i from 0] \s/\t in {#6}{%
+    \coordinate (p) at ($(#1.north)+({#2+\i*#3},0)$);
+    \pgfmathparse{Mod(\i,2)==0 ? #4 : #5}\let\hy\pgfmathresult
+    \node[\s] (#1-t\i) at ($(p)+(0,\hy)$) {};
+    \node[et,above] at ($(#1-t\i)+(0,0.1)$) {\t};
+    \draw[link] (p) -- (#1-t\i);
+  }%
+}
+% comb in BASSO: archi verticali, etichette in basso, profondita ALTERNATE
+\newcommand{\combB}[6]{%
+  \foreach[count=\i from 0] \s/\t in {#6}{%
+    \coordinate (p) at ($(#1.south)+({#2+\i*#3},0)$);
+    \pgfmathparse{Mod(\i,2)==0 ? #4 : #5}\let\hy\pgfmathresult
+    \node[\s] (#1-b\i) at ($(p)+(0,-\hy)$) {};
+    \node[et,below] at ($(#1-b\i)+(0,-0.1)$) {\t};
+    \draw[link] (p) -- (#1-b\i);
+  }%
 }
 
 \begin{document}
 \begin{tikzpicture}[x=1cm, y=1cm]
 
-  % gerarchia contratto collettivo (sinistra)
-  \node[entita] (set)  at (-6, 6.5) {SETTORE\_CCNL};
-  \node[entita] (ccnl) at (-6, 4.5) {CCNL};
-  \node[debole] (sud)  at (-6, 2.5) {SUDDIVISIONE};
-  \node[debole] (liv)  at (-6, 0.5) {LIVELLO};
+  % ===================== ENTITA =====================
+  % gerarchia contratto collettivo (colonna sinistra)
+  \node[entita] (set)  at (-15, 15) {SETTORE\_CCNL};
+  \node[entita, minimum height=12mm] (ccnl) at (-15, 11.5) {CCNL};
+  \node[debole] (sud)  at (-15, 8)  {SUDDIVISIONE};
+  \node[debole, minimum height=21mm] (liv) at (-15, 4.3) {LIVELLO};
+  \node[entita, minimum height=28mm, minimum width=22mm] (con) at (-9.5, 0) {CONTRATTO};
 
-  % ditta e satelliti
-  \node[entita] (ditta) at (0, 7.0) {DITTA};
-  \node[entita] (ate)  at (0, 9.0) {ATECO};
-  \node[debole] (uni)  at (-3, 7.0) {UNITA\_APP.};
-  \node[entita] (ind)  at (3, 8.5) {INDIRIZZO};
-  \node[entita] (com)  at (6.5, 9.0) {COMUNE};
-  \node[entita] (cdc)  at (7.5, 6.6) {CENTRO\_DI\_COSTO};
+  % ditta, generalizzazione e satelliti
+  \node[entita] (ateco) at (-9, 16) {ATECO};
+  \node[entita, minimum width=62mm] (ditta) at (-2, 11.5) {DITTA};
+  \node[entita] (pg) at (-7, 8.5) {PERSONA\_GIURIDICA};
+  \node[entita, minimum width=38mm] (pf) at (-3, 8.5) {PERSONA\_FISICA};
+  \node[debole] (unita) at (5, 16) {UNITA\_APPART.};
+  \node[entita] (ind) at (8.5, 12.5) {INDIRIZZO};
+  \node[entita, minimum height=15mm] (com) at (13.5, 15.5) {COMUNE};
+  \node[entita] (cdc) at (8.5, 8.5) {CENTRO\_DI\_COSTO};
 
-  % generalizzazione SOTTO la ditta
-  \node[entita] (pg) at (-2.2, 5.2) {PERSONA\_GIURIDICA};
-  \node[entita] (pf) at (2.0, 5.2) {PERSONA\_FISICA};
+  % dipendente
+  \node[entita, minimum width=82mm] (dip) at (3, 6.5) {DIPENDENTE};
 
-  \node[entita] (dip)  at (5.2, 5.0) {DIPENDENTE};
-  \node[entita] (con)  at (0, 1.0) {CONTRATTO};
-  \node[entita] (ced)  at (8, 3.0) {CEDOLINO};
+  % cedolino (colonna centrale con attributi a sx/dx)
+  \node[entita, minimum height=48mm, minimum width=26mm] (ced) at (18, 2.5) {CEDOLINO};
 
   % dettaglio cedolino
-  \node[debole] (voce) at (11.5, 5.0) {VOCE\_CEDOLINO};
-  \node[entita] (tv)   at (15.8, 5.0) {TIPO\_VOCE};
-  \node[debole] (rat)  at (11.5, 3.0) {RATEO};
-  \node[debole] (contr) at (11.5, 1.0) {CONTRIBUTO};
-  \node[entita] (tc)   at (15.8, 1.0) {TIPO\_CONTRIB.};
-  \node[debole] (add)  at (11.5,-1.0) {ADDIZIONALE};
+  \node[debole, minimum height=24mm] (voce) at (15, 8)  {VOCE\_CEDOLINO};
+  \node[entita, minimum height=27mm] (tv) at (15, 11.5) {TIPO\_VOCE};
+  \node[debole, minimum height=20mm] (rat) at (22.5, 8) {RATEO};
+  \node[debole, minimum width=30mm] (co)  at (14, -3.5) {CONTRIBUTO};
+  \node[entita, minimum height=14mm] (tc) at (9.5, -3.5) {TIPO\_CONTRIB.};
+  \node[debole, minimum height=18mm] (add) at (18, -6) {ADDIZIONALE};
+  \node[debole, minimum height=22mm] (gio) at (24, -3) {GIORNO};
+  \node[debole] (tim) at (24, -8) {TIMBRATURA};
+  \node[debole] (ass) at (28.5, -8) {ASSENZA};
+  \node[entita, minimum height=17mm] (cau) at (33, -8) {CAUSALE\_ASS.};
 
-  % presenze
-  \node[debole] (gio)  at (8,-1.0) {GIORNO};
-  \node[debole] (tim)  at (8,-3.0) {TIMBRATURA};
-  \node[debole] (ass)  at (11.5,-3.0) {ASSENZA};
-  \node[entita] (cau)  at (15.8,-3.0) {CAUSALE\_ASS.};
+  % ===================== ATTRIBUTI =====================
+  \stackL{set}{0.22}{0.45}{0.9}{pk/codice, attr/descrizione}
+  \stackL{ccnl}{0.5}{0.5}{0.9}{pk/codice, attr/descrizione, attr/maggiorazione\_str}
+  \stackL{sud}{0.22}{0.45}{0.9}{pk/cod\_suddivisione, attr/descrizione}
+  \stackL{liv}{0.75}{0.5}{0.9}{pk/livello, attr/descrizione, attr/paga\_base, attr/paga\_oraria\_min}
 
-  % ---------------- GENERALIZZAZIONE ----------------
-  \coordinate (fk) at (0,6.1);
-  \draw[isa] (fk) -- (ditta.south);
-  \draw[l] (pg.north) -- (fk);
-  \draw[l] (pf.north) -- (fk);
-  \node[c] at (0.55,5.95) {t,e};
+  \stackL{con}{1.0}{0.5}{0.9}{pk/ID, attr/tipo\_rapporto, attr/part\_time\_perc, attr/paga\_oraria, attr/ore\_settimanali}
+  \stackR{con}{1.0}{0.5}{0.9}{attr/ral, attr/data\_inizio, attr/data\_fine, attr/qualifica, attr/mansione}
 
-  % ---------------- RELAZIONI ----------------
-  \node[rel] (r1) at (-6,5.5) {compr}; \draw[l] (set)--(r1) node[c,pos=.4]{(1,N)}; \draw[l] (r1)--(ccnl) node[c,pos=.6]{(1,1)};
-  \node[rel] (r2) at (-6,3.5) {ha};    \draw[l] (ccnl)--(r2) node[c,pos=.4]{(1,N)}; \draw[l] (r2)--(sud) node[c,pos=.6]{(1,1)};
-  \node[rel] (r3) at (-6,1.5) {compr}; \draw[l] (sud)--(r3) node[c,pos=.4]{(1,N)}; \draw[l] (r3)--(liv) node[c,pos=.6]{(1,1)};
+  \combT{ditta}{-2.7}{0.9}{0.65}{1.35}{pk/ID, attr/codice\_fiscale, attr/data\_costituzione, attr/partita\_iva, attr/PEC, attr/email, attr/telefono}
 
-  \node[rel] (r4) at (-1.5,7.0) {ha};    \draw[l] (uni)--(r4) node[c,pos=.35]{(1,1)}; \draw[l] (r4)--(ditta) node[c,pos=.65]{(1,N)};
-  \node[rel] (r5) at (0,8.0) {classif};  \draw[l] (ditta)--(r5) node[c,pos=.4]{(1,N)}; \draw[l] (r5)--(ate) node[c,pos=.6]{(0,N)};
-  \node[rel] (r6) at (1.6,7.7) {sede};   \draw[l] (ditta)--(r6) node[c,pos=.35]{(1,N)}; \draw[l] (r6)--(ind) node[c,pos=.7]{(0,1)};
-  \node[rel] (r7) at (4.9,8.75) {ubic};  \draw[l] (ind)--(r7) node[c,pos=.4]{(1,1)}; \draw[l] (r7)--(com) node[c,pos=.6]{(0,N)};
-  \node[rel] (r8) at (3.9,6.8) {usa};    \draw[l] (ditta)--(r8) node[c,pos=.3]{(1,N)}; \draw[l] (r8)--(cdc) node[c,pos=.75]{(0,N)};
+  \stackL{ateco}{0.22}{0.45}{0.9}{pk/codice, attr/descrizione}
+  \stackL{pg}{0.22}{0.45}{0.9}{attr/ragione\_sociale, attr/forma\_giuridica}
+  \combB{pf}{-1.6}{0.8}{0.55}{1.25}{attr/cognome, attr/nome, attr/sesso, attr/data\_nascita, attr/denominazione}
 
-  \node[rel] (r9) at (-3,5.9) {applica}; \draw[l] (ditta)--(r9) node[c,pos=.3]{(1,N)}; \draw[l] (r9)--(ccnl) node[c,pos=.75]{(0,N)};
+  \combT{unita}{-0.6}{1.2}{0.6}{1.2}{pk/codice, attr/descrizione}
+  \combT{ind}{-0.6}{0.75}{0.55}{1.15}{pk/ID, attr/via}
+  \combB{ind}{-0.45}{0.9}{0.55}{1.15}{attr/civico, attr/cap}
+  \stackR{com}{0.5}{0.5}{0.9}{pk/codice\_istat, attr/nome, attr/provincia}
+  \stackR{cdc}{0.22}{0.45}{0.9}{pk/codice, attr/descrizione}
 
-  \node[rel] (r10) at (2.8,6.1) {occupa}; \draw[l] (ditta)--(r10) node[c,pos=.35]{(1,N)}; \draw[l] (r10)--(dip) node[c,pos=.7]{(1,1)};
-  \node[rel] (r11) at (6.4,5.8) {affer};  \draw[l] (dip)--(r11) node[c,pos=.35]{(0,1)}; \draw[l] (r11)--(cdc) node[c,pos=.7]{(0,N)};
-  \node[rel] (r12) at (6.4,7.4) {nato};   \draw[l] (dip) to[out=70,in=250] (r12) node[c,pos=.7]{(1,1)}; \draw[l] (r12)--(com) node[c,pos=.6]{(0,N)};
-  \node[rel] (r13) at (2.6,3.0) {stipula};\draw[l] (dip)--(r13) node[c,pos=.3]{(1,N)}; \draw[l] (r13)--(con) node[c,pos=.75]{(1,1)};
-  \node[rel] (r14) at (-3,0.75) {inquadra};\draw[l] (con)--(r14) node[c,pos=.4]{(1,1)}; \draw[l] (r14)--(liv) node[c,pos=.65]{(0,N)};
-  \node[rel] (r15) at (6.6,4.0) {riceve}; \draw[l] (dip)--(r15) node[c,pos=.35]{(1,N)}; \draw[l] (r15)--(ced) node[c,pos=.7]{(1,1)};
+  \combB{dip}{-3.6}{0.9}{0.6}{1.3}{pk/codice\_fiscale, attr/data\_nascita, attr/modalita\_pagamento, attr/matricola, attr/iban, attr/banca, attr/cognome, attr/sesso, attr/nome}
 
-  \node[rel] (r16) at (9.75,4.0) {composto}; \draw[l] (ced)--(r16) node[c,pos=.3]{(1,N)}; \draw[l] (r16)--(voce) node[c,pos=.75]{(1,1)};
-  \node[rel] (r17) at (13.65,5.0){di\_tipo}; \draw[l] (voce)--(r17) node[c,pos=.4]{(1,1)}; \draw[l] (r17)--(tv) node[c,pos=.6]{(0,N)};
-  \node[rel] (r18) at (9.75,3.0) {ha};       \draw[l] (ced)--(r18) node[c,pos=.4]{(1,N)}; \draw[l] (r18)--(rat) node[c,pos=.6]{(1,1)};
-  \node[rel] (r19) at (9.75,2.0) {ha};       \draw[l] (ced)--(r19) node[c,pos=.3]{(1,N)}; \draw[l] (r19)--(contr) node[c,pos=.75]{(1,1)};
-  \node[rel] (r20) at (13.65,1.0){di\_tipo}; \draw[l] (contr)--(r20) node[c,pos=.4]{(1,1)}; \draw[l] (r20)--(tc) node[c,pos=.6]{(0,N)};
-  \node[rel] (r21) at (9.75,1.0) {ha};       \draw[l] (ced)--(r21) node[c,pos=.3]{(0,N)}; \draw[l] (r21)--(add) node[c,pos=.75]{(1,1)};
+  \stackL{ced}{2.0}{0.5}{0.9}{pk/codice, attr/data\_elaborazione, attr/tot\_competenze, attr/tot\_trattenute, attr/costo\_azienda, attr/imponibile\_prev, attr/imponibile\_fisc, attr/irpef\_lorda, attr/irpef\_netta}
+  \stackR{ced}{2.0}{0.5}{0.9}{attr/tot\_detrazioni, attr/tfr\_quota, attr/tfr\_rivalutazione, attr/tfr\_fondo, attr/ore\_ordinarie, attr/ore\_straordinarie, attr/anno, attr/mese, attr/netto}
 
-  \node[rel] (r22) at (8,1.75) {ha};         \draw[l] (ced)--(r22) node[c,pos=.4]{(1,N)}; \draw[l] (r22)--(gio) node[c,pos=.6]{(1,1)};
-  \node[rel] (r23) at (8,-2.0) {ha};         \draw[l] (gio)--(r23) node[c,pos=.4]{(0,N)}; \draw[l] (r23)--(tim) node[c,pos=.6]{(1,1)};
-  \node[rel] (r24) at (9.75,-2.0) {ha};      \draw[l] (gio)--(r24) node[c,pos=.3]{(0,N)}; \draw[l] (r24)--(ass) node[c,pos=.75]{(1,1)};
-  \node[rel] (r25) at (13.65,-3.0){causale}; \draw[l] (ass)--(r25) node[c,pos=.4]{(1,1)}; \draw[l] (r25)--(cau) node[c,pos=.6]{(0,N)};
+  \stackL{voce}{1.0}{0.5}{0.9}{pk/riga, attr/importo, attr/quantita, attr/costo\_azienda, attr/conto}
+  \stackL{tv}{1.25}{0.5}{0.9}{pk/codice, attr/descrizione, attr/categoria, attr/segno, attr/imponibile\_prev, attr/imponibile\_fisc}
+  \stackR{rat}{0.75}{0.5}{0.9}{pk/tipo, attr/spettante, attr/goduto, attr/residuo}
+  \combT{co}{-0.6}{1.2}{0.55}{1.15}{attr/imponibile, attr/aliquota}
+  \combB{co}{-0.6}{1.2}{0.55}{1.15}{attr/quota\_dipendente, attr/quota\_ditta}
+  \stackL{tc}{0.5}{0.5}{0.9}{pk/codice, attr/descrizione, attr/ente}
+  \stackR{add}{0.75}{0.5}{0.9}{pk/tipo, attr/imponibile, attr/aliquota, attr/importo}
+  \stackR{gio}{1.0}{0.5}{0.9}{pk/data, attr/tipo\_giorno, attr/ore\_teoriche, attr/ore\_lavorate, attr/ore\_straordinario}
+  \stackL{tim}{0.22}{0.45}{0.9}{pk/progressivo, attr/ora\_entrata, attr/ora\_uscita}
+  \combB{ass}{0}{0}{0.6}{0.6}{attr/ore}
+  \stackR{cau}{0.6}{0.5}{0.9}{pk/codice, attr/descrizione, attr/retribuita, attr/incide\_ratei}
+
+  % ===================== GENERALIZZAZIONE =====================
+  \coordinate (fk) at (-3.5,10.0);
+  \draw[isa] (fk) -- ($(ditta.south)+(-1.5,0)$);
+  \draw[link] (pg.north) -- (fk);
+  \draw[link] (pf.north) -- (fk);
+  \node[c] at (-2.9,9.85) {t,e};
+
+  % ===================== RELAZIONI =====================
+  \node[rel] (r1) at (-15,13.2){compr};   \draw[link] (set.south)--(r1) node[c,pos=.45]{(1,N)}; \draw[link] (r1)--(ccnl.north) node[c,pos=.55]{(1,1)};
+  \node[rel] (r2) at (-15,9.6){ha};       \draw[link] (ccnl.south)--(r2) node[c,pos=.45]{(1,N)}; \draw[link] (r2)--(sud.north) node[c,pos=.55]{(1,1)};
+  \node[rel] (r3) at (-15,6.5){compr};    \draw[link] (sud.south)--(r3) node[c,pos=.45]{(1,N)}; \draw[link] (r3)--(liv.north) node[c,pos=.55]{(1,1)};
+
+  \node[rel] (r4) at (-12.6,2.2){inquadra}; \draw[link] (con.north west)--(r4) node[c,pos=.4]{(1,1)}; \draw[link] (r4)--(liv.south) node[c,pos=.7]{(0,N)};
+  \node[rel] (r5) at (-4,4.2){stipula};   \draw[link] (dip.south west)--(r5) node[c,pos=.35]{(1,N)}; \draw[link] (r5)--(con.north east) node[c,pos=.75]{(1,1)};
+
+  \node[rel] (r6) at (-9,11.5){applica};  \draw[link] (ditta.west)--(r6) node[c,pos=.3]{(1,N)}; \draw[link] (r6)--(ccnl.east) node[c,pos=.75]{(0,N)};
+  \node[rel] (r7) at (-7,13.9){classif};  \draw[link] (ditta.north west)--(r7) node[c,pos=.6]{(1,N)}; \draw[link] (r7)--(ateco.south) node[c,pos=.6]{(0,N)};
+  \node[rel] (r8) at (2.4,13.9){ha};      \draw[link] (ditta.north east)--(r8) node[c,pos=.55]{(1,N)}; \draw[link] (r8)--(unita.south) node[c,pos=.6]{(1,1)};
+  \node[rel] (r9) at (4.6,11.9){sede};    \draw[link] (ditta.east)--(r9) node[c,pos=.4]{(1,N)}; \draw[link] (r9)--(ind.west) node[c,pos=.65]{(0,1)};
+  \node[rel] (r10) at (11.5,14.2){ubic};  \draw[link] (ind.north east)--(r10) node[c,pos=.5]{(1,1)}; \draw[link] (r10)--(com.south) node[c,pos=.6]{(0,N)};
+  \node[rel] (r11) at (5,9.2){usa};       \draw[link] (ditta.south east)--(r11) node[c,pos=.4]{(1,N)}; \draw[link] (r11)--(cdc.west) node[c,pos=.7]{(0,N)};
+
+  \node[rel] (r12) at (0.5,8.6){occupa};  \draw[link] (ditta.south)--(r12) node[c,pos=.4]{(1,N)}; \draw[link] (r12)--(dip.north) node[c,pos=.65]{(1,1)};
+  \node[rel] (r13) at (7.4,7.4){afferisce}; \draw[link] (dip.north east)--(r13) node[c,pos=.55]{(0,1)}; \draw[link] (r13)--(cdc.south) node[c,pos=.6]{(0,N)};
+  \node[rel] (r14) at (10,10.5){nato};    \draw[link] (dip.east)--(r14) node[c,pos=.7]{(1,1)}; \draw[link] (r14)--(com.west) node[c,pos=.6]{(0,N)};
+  \node[rel] (r15) at (12,4.5){riceve};   \draw[link] (dip.south east)--(r15) node[c,pos=.45]{(1,N)}; \draw[link] (r15)--(ced.north west) node[c,pos=.7]{(1,1)};
+
+  \node[rel] (r16) at (16.6,6.3){composto}; \draw[link] (ced.north)--(r16) node[c,pos=.4]{(1,N)}; \draw[link] (r16)--(voce.south) node[c,pos=.7]{(1,1)};
+  \node[rel] (r17) at (15,9.5){di\_tipo}; \draw[link] (voce.north)--(r17) node[c,pos=.4]{(1,1)}; \draw[link] (r17)--(tv.south) node[c,pos=.65]{(0,N)};
+  \node[rel] (r18) at (20.8,6){ha};       \draw[link] (ced.north east)--(r18) node[c,pos=.45]{(1,N)}; \draw[link] (r18)--(rat.south) node[c,pos=.6]{(1,1)};
+  \node[rel] (r19) at (16,-1.2){ha};      \draw[link] (ced.south)--(r19) node[c,pos=.4]{(1,N)}; \draw[link] (r19)--(co.east) node[c,pos=.7]{(1,1)};
+  \node[rel] (r20) at (11.75,-3.5){di\_tipo}; \draw[link] (co.west)--(r20) node[c,pos=.4]{(1,1)}; \draw[link] (r20)--(tc.east) node[c,pos=.65]{(0,N)};
+  \node[rel] (r21) at (18,-2){ha};        \draw[link] (ced.south)--(r21) node[c,pos=.35]{(0,N)}; \draw[link] (r21)--(add.north) node[c,pos=.7]{(1,1)};
+  \node[rel] (r22) at (20.5,-0.5){ha};    \draw[link] (ced.south east)--(r22) node[c,pos=.4]{(1,N)}; \draw[link] (r22)--(gio.north west) node[c,pos=.7]{(1,1)};
+
+  \node[rel] (r23) at (24,-5.5){ha};      \draw[link] (gio.south)--(r23) node[c,pos=.4]{(0,N)}; \draw[link] (r23)--(tim.north) node[c,pos=.65]{(1,1)};
+  \node[rel] (r24) at (26.4,-5.3){ha};    \draw[link] (gio.south east)--(r24) node[c,pos=.45]{(0,N)}; \draw[link] (r24)--(ass.north) node[c,pos=.6]{(1,1)};
+  \node[rel] (r25) at (30.7,-8){causale}; \draw[link] (ass.east)--(r25) node[c,pos=.4]{(1,1)}; \draw[link] (r25)--(cau.west) node[c,pos=.65]{(0,N)};
 
 \end{tikzpicture}
 \end{document}
