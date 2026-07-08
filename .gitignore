@@ -37,6 +37,8 @@ slides/**/*.xdv
 slides/**/*.out.ps
 slides/**/*.nav
 slides/**/*.snm
+slides/**/*.vrb
+slides/**/*.txt
 
 # Python
 __pycache__/
