@@ -20,6 +20,23 @@ report/**/*.xdv
 report/**/*.out.ps
 
 
+slides/**/*.aux
+slides/**/*.log
+slides/**/*.out
+slides/**/*.toc
+slides/**/*.lof
+slides/**/*.lot
+slides/**/*.bbl
+slides/**/*.bcf
+slides/**/*.blg
+slides/**/*.run.xml
+slides/**/*.synctex.gz
+slides/**/*.fls
+slides/**/*.fdb_latexmk
+slides/**/*.xdv
+slides/**/*.out.ps
+slides/**/*.nav
+slides/**/*.snm
 
 # Python
 __pycache__/
