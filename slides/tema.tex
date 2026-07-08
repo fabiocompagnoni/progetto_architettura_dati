@@ -1,0 +1,97 @@
+% ---------------------------------------------------------------------------
+% Tema Beamer "archdati" — accento unico teal/indaco, font Lato, pdflatex.
+% Colorato ma sobrio; niente slide divisorie vuote; footer con barra di
+% avanzamento (per regolarsi sui tempi durante l'orale).
+% ---------------------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage{csquotes}
+\usepackage{lato}
+\usepackage{inconsolata}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{booktabs}
+\usepackage{colortbl}
+\usepackage{array}
+
+% --- Palette -----------------------------------------------------------------
+\definecolor{teal}{HTML}{0E7C86}      % accento primario
+\definecolor{ink}{HTML}{22314F}       % inchiostro (testo/titoli)
+\definecolor{sfondo}{HTML}{FAF9F6}    % off-white caldo
+\definecolor{amber}{HTML}{E0A458}     % highlight riservato (dato chiave / vincitore)
+\definecolor{grigio}{HTML}{6B7280}
+\definecolor{grigiochiaro}{HTML}{DED9D3}
+\definecolor{pgblu}{HTML}{336791}     % identita' Citus/PostgreSQL
+\definecolor{mongoverde}{HTML}{00684A}% identita' MongoDB
+
+% --- Base --------------------------------------------------------------------
+\usetheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{blocks}[rounded][shadow=false]
+\setbeamercolor{background canvas}{bg=sfondo}
+\setbeamercolor{normal text}{fg=ink}
+\setbeamercolor{structure}{fg=teal}
+\setbeamercolor{frametitle}{fg=ink}
+\setbeamercolor{itemize item}{fg=teal}
+\setbeamercolor{itemize subitem}{fg=teal}
+\setbeamercolor{enumerate item}{fg=teal}
+\setbeamerfont{frametitle}{series=\bfseries,size=\Large}
+\setbeamerfont{title}{series=\bfseries,size=\huge}
+\usebeamercolor[fg]{normal text}
+
+% --- Titolo di frame con riga d'accento --------------------------------------
+\setbeamertemplate{frametitle}{%
+  \vspace*{0.7em}%
+  {\usebeamerfont{frametitle}\usebeamercolor[fg]{frametitle}\insertframetitle}\\[0.18em]%
+  {\color{teal}\rule{2.4em}{2.4pt}}%
+  \vspace*{0.1em}%
+}
+
+% --- Footer: sezione + n/tot + barra di avanzamento --------------------------
+\setbeamertemplate{footline}{%
+  \leavevmode%
+  \hbox to \paperwidth{\hspace{1.4em}%
+    {\footnotesize\color{grigio}\insertsection}\hfill
+    {\footnotesize\color{grigio}\insertframenumber\,/\,\inserttotalframenumber}%
+    \hspace{1.4em}}%
+  \vskip3pt%
+  \ifnum\inserttotalframenumber>0
+    {\color{teal}\rule{\dimexpr\paperwidth*\insertframenumber/\inserttotalframenumber\relax}{2.2pt}}%
+    {\color{grigiochiaro}\rule{\dimexpr\paperwidth-\paperwidth*\insertframenumber/\inserttotalframenumber\relax}{2.2pt}}%
+  \else
+    {\color{grigiochiaro}\rule{\paperwidth}{2.2pt}}%
+  \fi
+}
+
+% --- Blocchi ----------------------------------------------------------------
+% Blocco per uno dei due sistemi (colore identitario in intestazione).
+\newenvironment{sysblock}[2]{%
+  \setbeamercolor{block title}{bg=#1,fg=white}%
+  \setbeamercolor{block body}{bg=#1!7,fg=ink}%
+  \begin{block}{#2}}{\end{block}}
+
+% Blocco "risultato / verdetto" con accento ambra.
+\newenvironment{keyblock}[1]{%
+  \setbeamercolor{block title}{bg=amber,fg=ink}%
+  \setbeamercolor{block body}{bg=amber!12,fg=ink}%
+  \begin{block}{#1}}{\end{block}}
+
+% Evidenziazione inline del dato chiave.
+\newcommand{\dato}[1]{{\color{teal}\bfseries #1}}
+\newcommand{\vince}[1]{{\color{teal}\bfseries #1}}
+
+% --- Codice (listings) ------------------------------------------------------
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{teal}\bfseries,
+  commentstyle=\color{grigio}\itshape,
+  stringstyle=\color{amber!80!black},
+  backgroundcolor=\color{ink!6},
+  frame=leftline, rulecolor=\color{teal}, framesep=6pt, xleftmargin=8pt,
+  breaklines=true, showstringspaces=false, columns=fullflexible,
+  captionpos=b, aboveskip=4pt, belowskip=2pt,
+}
