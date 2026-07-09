@@ -218,13 +218,42 @@ def fig_scaling_dati_citus():
         pts.append((d, f"{RES}/citus/letture/scalabilita_dati/scala_dati_{d}ditte.csv", 12, True))
     data = {d: read_lat(p, i, h) for d, p, i, h in pts}
     xs = sorted(data)
-    fig, ax = plt.subplots(figsize=(6, 3.7))
+    xend = xs[-1]
+    span = xend - xs[0]
+    fig, ax = plt.subplots(figsize=(6.2, 3.9))
     style_ax(ax)
-    plot_regimi(ax, xs, data, CITUS)
+    # scala lineare in ms (coerente col report); cross-shard etichettate col codice
+    # query in coda, single-shard grigie (gruppo)
+    ends = []
+    ymax = 0.0
+    for q in read_queries_sorted(data[xs[0]]):
+        ys = [data[x].get(q, float("nan")) for x in xs]
+        ymax = max(ymax, max(ys))
+        if q in SINGLE_SHARD:
+            ax.plot(xs, ys, "-", color="#9a9a9a", lw=1.0, alpha=0.75, zorder=2)
+        else:
+            ax.plot(xs, ys, "-o", color=CITUS, lw=1.3, ms=3.5, alpha=0.9, zorder=3)
+            ends.append([q[:3], ys[-1]])
+    ax.set_ylim(0, ymax * 1.06)
+    # de-collisione verticale delle etichette in coordinate lineari (solo cross-shard)
+    ends.sort(key=lambda e: e[1])
+    gap = ymax * 0.05
+    ypos = [e[1] for e in ends]
+    for i in range(1, len(ypos)):
+        if ypos[i] - ypos[i - 1] < gap:
+            ypos[i] = ypos[i - 1] + gap
+    for (code, yv), yp in zip(ends, ypos):
+        ax.annotate(code, xy=(xend, yv), xytext=(xend + span * 0.035, yp),
+                    textcoords="data", va="center", fontsize=7, color=CITUS,
+                    arrowprops=dict(arrowstyle="-", color=CITUS, lw=0.4, alpha=0.55))
     ax.set_xlabel("ditte (tenant) — 4 nodi")
     ax.set_ylabel("latenza (ms)")
     ax.set_xticks(xs)
-    ax.set_ylim(0, None)
+    ax.set_xlim(xs[0], xend + span * 0.2)
+    from matplotlib.lines import Line2D
+    handles = [Line2D([], [], color=CITUS, marker="o", ms=4, lw=1.4, label="cross-shard"),
+               Line2D([], [], color="#9a9a9a", lw=1.2, label="single-shard")]
+    ax.legend(handles=handles, frameon=False, fontsize=9, loc="upper left")
     save(fig, "fig-scaling-dati-citus.pdf")
 
 
