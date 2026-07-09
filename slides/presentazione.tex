@@ -454,36 +454,34 @@ bash scripts/carica-citus.sh generato/citus      # oppure: carica-mongo.sh gener
 \end{frame}
 
 % ===== Scalabilità per dati: tabella completa =============================
-\begin{frame}{Scalabilità sui dati: Citus vs MongoDB (latenza, ms)}
+\begin{frame}{Scalabilità sui dati: confronto a pari scala}
+  \small \textbf{Confronto diretto} all'\dato{unica scala comparabile} (${\sim}230$--$240$ ditte, 4 nodi); entrambi i sistemi partono dalla stessa base di 30 ditte.
+  \vspace{0.1em}
   \centering
   \scriptsize
-  \setlength{\tabcolsep}{3pt}
-  \renewcommand{\arraystretch}{1.05}
-  \begin{tabular}{@{}l *{5}{>{\columncolor{pgblu!9}}r} *{4}{>{\columncolor{mongoverde!9}}r} l@{}}
+  \setlength{\tabcolsep}{5pt}
+  \renewcommand{\arraystretch}{0.92}
+  \begin{tabular}{@{}l >{\columncolor{pgblu!9}}r >{\columncolor{mongoverde!9}}r l@{}}
     \toprule
-    & \multicolumn{5}{c}{\textcolor{pgblu}{\textbf{Citus}} (ditte)} & \multicolumn{4}{c}{\textcolor{mongoverde}{\textbf{MongoDB}} (ditte)} & \\
-    \cmidrule(lr){2-6}\cmidrule(lr){7-10}
-    \textbf{Query} & 30 & 60 & 120 & 240 & 480 & 230 & 630 & 1430 & 2630 & \textbf{vince} \\
+    \textbf{Query} & \textcolor{pgblu}{\textbf{Citus}} (240) & \textcolor{mongoverde}{\textbf{MongoDB}} (230) & \textbf{più veloce} \\
     \midrule
-    L01 cedolino     & 1.5 & 1.5 & 1.5 & 1.4 & 1.6 & 2.6 & 2.6 & 2.7 & 2.7 & \textcolor{pgblu}{Citus} \\
-    L02 cedolini ditta & 1.5 & 1.5 & 1.5 & 1.6 & 1.5 & 3.0 & 3.1 & 3.2 & 3.1 & \textcolor{pgblu}{Citus} \\
-    L03 costo/centro & 2.3 & 2.3 & 2.4 & 2.4 & 2.4 & 3.4 & 3.4 & 3.5 & 3.5 & \textcolor{grigio}{$\approx$} \\
-    L04 gender gap   & 18.3 & 20.4 & 24.0 & 30.9 & 68.3 & 26.0 & 61.6 & 122 & 185 & \textcolor{mongoverde}{Mongo} \\
-    L05 top-N        & 14.9 & 14.8 & 15.8 & 15.7 & 17.4 & 7.9 & 14.0 & 26.8 & 44.4 & \textcolor{mongoverde}{Mongo 2$\times$} \\
-    L06 assenteismo  & 15.4 & 17.5 & 25.1 & 51.2 & 73.1 & 302 & 729 & 1685 & 2834 & \textcolor{pgblu}{\textbf{Citus 6$\times$}} \\
-    L07 straordinari & 3.2 & 3.2 & 3.2 & 3.2 & 3.3 & 3.6 & 3.7 & 3.8 & 3.8 & \textcolor{grigio}{$\approx$} \\
-    L08 trend costo  & 12.1 & 12.6 & 13.9 & 14.9 & 17.8 & 29.0 & 68.8 & 149 & 255 & \textcolor{pgblu}{Citus 2$\times$} \\
-    L09 organico     & 12.8 & 13.5 & 14.6 & 16.8 & 20.2 & 19.7 & 44.6 & 83.6 & 125 & \textcolor{grigio}{$\approx$} \\
-    L10 ced.\ completo & 21.7 & 21.7 & 21.8 & 21.3 & 21.7 & 2.4 & 2.5 & 2.5 & 2.5 & \textcolor{mongoverde}{\textbf{Mongo 9$\times$}} \\
-    L11 spesa/cat.   & 20.1 & 24.6 & 34.9 & 66.0 & 114.1 & 34.2 & 80.0 & 178 & 308 & \textcolor{mongoverde}{Mongo 2$\times$} \\
-    L12 ferie residue & 19.5 & 20.4 & 23.5 & 28.3 & 49.6 & 476 & 1174 & 2760 & 4786 & \textcolor{pgblu}{\textbf{Citus 17$\times$}} \\
-    L13 riepilogo    & 3.4 & 3.6 & 3.6 & 3.6 & 3.5 & 33.8 & 34.4 & 42.8 & 38.6 & \textcolor{pgblu}{\textbf{Citus 9$\times$}} \\
+    L01 cedolino        & 1.4  & 2.6  & \textcolor{pgblu}{Citus} \\
+    L02 cedolini ditta  & 1.6  & 3.0  & \textcolor{pgblu}{Citus} \\
+    L03 costo/centro    & 2.4  & 3.4  & \textcolor{grigio}{$\approx$} \\
+    L04 gender gap      & 30.9 & 26.0 & \textcolor{mongoverde}{Mongo} \\
+    L05 top-N           & 15.7 & 7.9  & \textcolor{mongoverde}{Mongo 2$\times$} \\
+    L06 assenteismo     & 51.2 & 302  & \textcolor{pgblu}{\textbf{Citus 6$\times$}} \\
+    L07 straordinari    & 3.2  & 3.6  & \textcolor{grigio}{$\approx$} \\
+    L08 trend costo     & 14.9 & 29.0 & \textcolor{pgblu}{Citus 2$\times$} \\
+    L09 organico        & 16.8 & 19.7 & \textcolor{grigio}{$\approx$} \\
+    L10 ced.\ completo  & 21.3 & 2.4  & \textcolor{mongoverde}{\textbf{Mongo 9$\times$}} \\
+    L11 spesa/cat.      & 66.0 & 34.2 & \textcolor{mongoverde}{Mongo 2$\times$} \\
+    L12 ferie residue   & 28.3 & 476  & \textcolor{pgblu}{\textbf{Citus 17$\times$}} \\
+    L13 riepilogo       & 3.6  & 33.8 & \textcolor{pgblu}{\textbf{Citus 9$\times$}} \\
     \bottomrule
   \end{tabular}
-  \par\vspace{0.2em}
-  {\scriptsize \textbf{Vince} = più veloce a pari scala (Citus 240 vs Mongo 230 ditte). Citus domina le
-  \textcolor{pgblu}{\textbf{query multi-entità}} (assenze, ratei: L06, L12, L13); MongoDB l'\textcolor{mongoverde}{\textbf{aggregato}}
-  (cedolino completo L10) e i percentili/top-N (L04, L05, L11).}
+  \par\vspace{0.15em}
+  {\scriptsize\color{grigio} Le scale massime differiscono perché \textbf{sotto ${\sim}230$ ditte il balancer di Mongo non distribuisce} (cedolini ${<}300$\,MB): a quel volume il confronto non sarebbe corretto. In sintesi, Citus prevale sul \textcolor{pgblu}{\textbf{multi-entità}}, Mongo sull'\textcolor{mongoverde}{\textbf{aggregato}}.}
 \end{frame}
 
 % ===== Dettaglio metriche: Citus ==========================================
